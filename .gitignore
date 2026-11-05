@@ -17,3 +17,7 @@ cuentas/
 # Ignorar cualquier archivo .json en todo el proyecto
 
 *.json 
+
+.venv
+
+./node_modules
