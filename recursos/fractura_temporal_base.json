@@ -1,0 +1,815 @@
+{
+ "pisos": [
+  {
+   "piso": 5,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 10,
+    "Emblema amplificador": 100
+   }
+  },
+  {
+   "piso": 10,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Tiradas facciones": 5,
+    "Emblema primordial": 50,
+    "T3": 1,
+    "Medallas": 200
+   }
+  },
+  {
+   "piso": 15,
+   "recompensas": {
+    "Emblema primordial": 50,
+    "Polvo azul (M)": 10,
+    "Piedra de alma poco común": 100,
+    "Esencia retorcida": 200,
+    "Monedas Poe": 500
+   }
+  },
+  {
+   "piso": 20,
+   "recompensas": {
+    "Oro (M)": 10,
+    "T2": 1,
+    "Piedra de héroe de élite": 20,
+    "Grabados verdes": 250,
+    "Medallas": 300
+   }
+  },
+  {
+   "piso": 25,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 10,
+    "Emblema amplificador": 100
+   }
+  },
+  {
+   "piso": 30,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Tiradas facciones": 5,
+    "Emblema primordial": 50,
+    "T3": 1,
+    "Medallas": 200
+   }
+  },
+  {
+   "piso": 35,
+   "recompensas": {
+    "Emblema primordial": 50,
+    "Polvo azul (M)": 10,
+    "Piedra de alma poco común": 100,
+    "Esencia retorcida": 200,
+    "Monedas Poe": 500
+   }
+  },
+  {
+   "piso": 40,
+   "recompensas": {
+    "Oro (M)": 10,
+    "T2": 1,
+    "Piedra de héroe de élite": 20,
+    "Grabados verdes": 250,
+    "Medallas": 300
+   }
+  },
+  {
+   "piso": 45,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 10,
+    "Emblema amplificador": 100
+   }
+  },
+  {
+   "piso": 50,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Tiradas facciones": 5,
+    "Emblema primordial": 50,
+    "T3": 1,
+    "Medallas": 300
+   }
+  },
+  {
+   "piso": 55,
+   "recompensas": {
+    "Emblema primordial": 50,
+    "Polvo azul (M)": 10,
+    "Piedra de alma poco común": 100,
+    "Esencia retorcida": 200,
+    "Monedas Poe": 500
+   }
+  },
+  {
+   "piso": 60,
+   "recompensas": {
+    "Oro (M)": 10,
+    "T2": 1,
+    "Piedra de héroe de élite": 20,
+    "Grabados verdes": 250,
+    "Medallas": 300
+   }
+  },
+  {
+   "piso": 65,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 10,
+    "Emblema primordial": 100,
+    "T3": 1,
+    "T4": 1
+   }
+  },
+  {
+   "piso": 70,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Tiradas facciones": 5,
+    "Emblema primordial": 50,
+    "T3": 1,
+    "Medallas": 300
+   }
+  },
+  {
+   "piso": 75,
+   "recompensas": {
+    "Emblema primordial": 50,
+    "Polvo azul (M)": 10,
+    "Piedra de alma poco común": 270,
+    "Esencia retorcida": 200,
+    "Monedas Poe": 500
+   }
+  },
+  {
+   "piso": 80,
+   "recompensas": {
+    "Oro (M)": 10,
+    "T2": 1,
+    "Piedra de alma poco común": 270,
+    "Grabados verdes": 250,
+    "Medallas": 300
+   }
+  },
+  {
+   "piso": 85,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 10,
+    "Emblema amplificador": 100,
+    "Emblema primordial": 100,
+    "T3": 1
+   }
+  },
+  {
+   "piso": 90,
+   "recompensas": {
+    "Emblema amplificador": 200,
+    "Polvo morado": 2000,
+    "Tiradas facciones": 5,
+    "T2": 2,
+    "Medallas": 400
+   }
+  },
+  {
+   "piso": 95,
+   "recompensas": {
+    "Polvo azul (M)": 10,
+    "Esencia retorcida": 200,
+    "Monedas Poe": 500,
+    "Piedra de héroe de élite": 120,
+    "Grabados verdes": 250
+   }
+  },
+  {
+   "piso": 100,
+   "recompensas": {
+    "Oro (M)": 10,
+    "T4": 1,
+    "Medallas": 400,
+    "Tiradas dragónicas": 10,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 105,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Cebos": 75,
+    "Cofre 2": 1
+   }
+  },
+  {
+   "piso": 110,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Cebos": 75,
+    "Medallas": 400,
+    "Cofre 1": 2
+   }
+  },
+  {
+   "piso": 115,
+   "recompensas": {
+    "T3": 1,
+    "Polvo azul (M)": 10,
+    "Grabados rojos": 100,
+    "Cofre 2": 1
+   }
+  },
+  {
+   "piso": 120,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas facciones": 5,
+    "Medallas": 500,
+    "Cofre 1": 2
+   }
+  },
+  {
+   "piso": 125,
+   "recompensas": {
+    "Oro (M)": 10,
+    "T3": 1,
+    "Grabados rojos": 100,
+    "Cofre 2": 1
+   }
+  },
+  {
+   "piso": 130,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Cebos": 75,
+    "Medallas": 500,
+    "Cofre 1": 2
+   }
+  },
+  {
+   "piso": 135,
+   "recompensas": {
+    "T4": 1,
+    "Polvo azul (M)": 10,
+    "Grabados rojos": 100,
+    "Cofre 2": 1
+   }
+  },
+  {
+   "piso": 140,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas facciones": 5,
+    "Cebos": 75,
+    "Medallas": 500,
+    "Cofre 1": 2
+   }
+  },
+  {
+   "piso": 145,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Cebos": 75,
+    "Cofre 2": 1
+   }
+  },
+  {
+   "piso": 150,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Cebos": 75,
+    "Medallas": 500,
+    "Cofre 2": 1
+   }
+  },
+  {
+   "piso": 155,
+   "recompensas": {
+    "T4": 1,
+    "Polvo azul (M)": 10,
+    "Cebos": 100,
+    "Cofre 2": 1
+   }
+  },
+  {
+   "piso": 160,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Cebos": 100,
+    "Medallas": 600,
+    "Cofre 2": 1
+   }
+  },
+  {
+   "piso": 165,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 5,
+    "T3": 1,
+    "Esencia retorcida": 200,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 170,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Tiradas facciones": 5,
+    "Grabados verdes": 500,
+    "Medallas": 300,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 175,
+   "recompensas": {
+    "Tiradas normales": 5,
+    "T3": 1,
+    "Polvo azul (M)": 10,
+    "Esencia retorcida": 300,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 180,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas facciones": 5,
+    "Grabados verdes": 500,
+    "Medallas": 300,
+    "Grabados rojos": 200
+   }
+  },
+  {
+   "piso": 185,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 5,
+    "T3": 1,
+    "Esencia retorcida": 300,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 190,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Tiradas facciones": 5,
+    "Grabados verdes": 500,
+    "Medallas": 300,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 195,
+   "recompensas": {
+    "Tiradas normales": 5,
+    "T3": 1,
+    "Polvo azul (M)": 10,
+    "Esencia retorcida": 300,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 200,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Grabados verdes": 550,
+    "Medallas": 300,
+    "Tiradas dragónicas": 10,
+    "Grabados rojos": 200
+   }
+  },
+  {
+   "piso": 205,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 10,
+    "T4": 1,
+    "Esencia retorcida": 300,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 210,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Tiradas facciones": 5,
+    "Medallas": 300,
+    "Grabados rojos": 100,
+    "Cofre 3": 2
+   }
+  },
+  {
+   "piso": 215,
+   "recompensas": {
+    "Tiradas normales": 10,
+    "T4": 1,
+    "Polvo azul (M)": 10,
+    "Esencia retorcida": 300,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 220,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas facciones": 5,
+    "Medallas": 300,
+    "Grabados rojos": 200,
+    "Cofre 3": 2
+   }
+  },
+  {
+   "piso": 225,
+   "recompensas": {
+    "Oro (M)": 10,
+    "T4": 1,
+    "Esencia retorcida": 600,
+    "Cebos": 100,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 230,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Tiradas facciones": 5,
+    "Medallas": 300,
+    "Grabados rojos": 100,
+    "Cofre 3": 2
+   }
+  },
+  {
+   "piso": 235,
+   "recompensas": {
+    "T4": 1,
+    "Polvo azul (M)": 10,
+    "Esencia retorcida": 600,
+    "Cebos": 150,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 240,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas facciones": 5,
+    "Medallas": 400,
+    "Grabados rojos": 200,
+    "Cofre 3": 2
+   }
+  },
+  {
+   "piso": 245,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 10,
+    "T3": 2,
+    "Esencia retorcida": 600,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 250,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Tiradas facciones": 10,
+    "Grabados verdes": 550,
+    "Medallas": 600,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 255,
+   "recompensas": {
+    "T4": 1,
+    "Polvo azul (M)": 10,
+    "Grabados rojos": 100,
+    "Tiradas celepogeas": 10,
+    "Cofre 3": 2
+   }
+  },
+  {
+   "piso": 260,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas facciones": 10,
+    "Grabados verdes": 550,
+    "Medallas": 700,
+    "Grabados rojos": 200
+   }
+  },
+  {
+   "piso": 265,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 10,
+    "T4": 1,
+    "Grabados rojos": 100,
+    "Cofre 3": 2
+   }
+  },
+  {
+   "piso": 270,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Tiradas facciones": 10,
+    "Grabados verdes": 600,
+    "Medallas": 700,
+    "Grabados rojos": 100
+   }
+  },
+  {
+   "piso": 275,
+   "recompensas": {
+    "T3": 2,
+    "Polvo azul (M)": 10,
+    "Medallas": 340,
+    "Grabados rojos": 150,
+    "Tiradas celepogeas": 15
+   }
+  },
+  {
+   "piso": 280,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas facciones": 10,
+    "Grabados verdes": 600,
+    "Medallas": 400,
+    "Grabados rojos": 150
+   }
+  },
+  {
+   "piso": 285,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Tiradas normales": 10,
+    "T4": 1,
+    "Medallas": 400,
+    "Grabados rojos": 150
+   }
+  },
+  {
+   "piso": 290,
+   "recompensas": {
+    "Polvo morado": 2000,
+    "Medallas": 400,
+    "Grabados rojos": 150,
+    "Tiradas celepogeas": 15,
+    "Cofre 3": 2
+   }
+  },
+  {
+   "piso": 295,
+   "recompensas": {
+    "Tiradas facciones": 10,
+    "T4": 1,
+    "Polvo azul (M)": 10,
+    "Medallas": 400,
+    "Grabados rojos": 200
+   }
+  },
+  {
+   "piso": 300,
+   "recompensas": {
+    "Oro (M)": 10,
+    "Medallas": 400,
+    "Tiradas dragónicas": 10,
+    "Grabados rojos": 200,
+    "Cofre 3": 2
+   }
+  }
+ ],
+ "cofres": {
+  "Cofre 1": {
+   "Emblema primordial": 30,
+   "Emblema amplificador": 20,
+   "Esencia retorcida": 150,
+   "Grabados verdes": 150
+  },
+  "Cofre 2": {
+   "Cebos": 50,
+   "Grabados verdes": 200,
+   "Monedas Poe": 2000,
+   "Esencia retorcida": 200,
+   "Cofres rojos": 10,
+   "Emblema primordial": 40,
+   "Emblema amplificador": 25
+  },
+  "Cofre 3": {
+   "Cebos": 60,
+   "Grabados verdes": 250,
+   "Monedas Poe": 2500,
+   "Esencia retorcida": 250,
+   "Cofres rojos": 12,
+   "Emblema primordial": 50,
+   "Emblema amplificador": 30,
+   "Grabados rojos": 125
+  }
+ },
+ "tiendas": [
+  {
+   "nombre": "Tienda 1",
+   "piso": 1,
+   "objetos": [
+    {
+     "objeto": "Hildwin",
+     "maximo": 1,
+     "precio": 6000,
+     "unidades": 60,
+     "cdn_id": 185
+    },
+    {
+     "objeto": "Eugene",
+     "maximo": 1,
+     "precio": 6000,
+     "unidades": 60,
+     "cdn_id": 178
+    },
+    {
+     "objeto": "Brutus ascendido",
+     "maximo": 1,
+     "precio": 6000,
+     "unidades": 60,
+     "cdn_id": 139
+    },
+    {
+     "objeto": "Ezizh",
+     "maximo": 1,
+     "precio": 6000,
+     "unidades": 60,
+     "cdn_id": 130
+    },
+    {
+     "objeto": "Solise",
+     "maximo": 1,
+     "precio": 6000,
+     "unidades": 60,
+     "cdn_id": 143
+    },
+    {
+     "objeto": "Talene",
+     "maximo": 1,
+     "precio": 6000,
+     "unidades": 60,
+     "cdn_id": 124
+    },
+    {
+     "objeto": "Tiradas SP",
+     "maximo": 5,
+     "precio": 150,
+     "unidades": 1
+    },
+    {
+     "objeto": "Tiradas celepogeas",
+     "maximo": 5,
+     "precio": 100,
+     "unidades": 1
+    },
+    {
+     "objeto": "Grabados rojos",
+     "maximo": 9,
+     "precio": 165,
+     "unidades": 50
+    },
+    {
+     "objeto": "Cebos",
+     "maximo": 50,
+     "precio": 160,
+     "unidades": 20
+    },
+    {
+     "objeto": "Grabados verdes",
+     "maximo": 50,
+     "precio": 100,
+     "unidades": 50
+    },
+    {
+     "objeto": "T4",
+     "maximo": 10,
+     "precio": 500,
+     "unidades": 1
+    },
+    {
+     "objeto": "Martillos",
+     "maximo": 20,
+     "precio": 400,
+     "unidades": 10
+    },
+    {
+     "objeto": "Cofre plateado",
+     "maximo": 50,
+     "precio": 80,
+     "unidades": 10
+    }
+   ]
+  },
+  {
+   "nombre": "Tienda 100",
+   "piso": 100,
+   "objetos": [
+    {
+     "objeto": "Tiradas SP",
+     "maximo": 5,
+     "precio": 150,
+     "unidades": 1
+    },
+    {
+     "objeto": "Tiradas celepogeas",
+     "maximo": 5,
+     "precio": 100,
+     "unidades": 1
+    }
+   ]
+  },
+  {
+   "nombre": "Tienda 160",
+   "piso": 160,
+   "objetos": [
+    {
+     "objeto": "Tiradas celepogeas",
+     "maximo": 10,
+     "precio": 130,
+     "unidades": 1
+    },
+    {
+     "objeto": "Tiradas SP",
+     "maximo": 10,
+     "precio": 150,
+     "unidades": 1
+    },
+    {
+     "objeto": "Grabados rojos",
+     "maximo": 40,
+     "precio": 200,
+     "unidades": 50
+    }
+   ]
+  },
+  {
+   "nombre": "Tienda 200",
+   "piso": 200,
+   "objetos": [
+    {
+     "objeto": "Tiradas SP",
+     "maximo": 10,
+     "precio": 150,
+     "unidades": 1
+    },
+    {
+     "objeto": "Tiradas celepogeas",
+     "maximo": 10,
+     "precio": 130,
+     "unidades": 1
+    },
+    {
+     "objeto": "Tiradas celepogeas",
+     "maximo": 10,
+     "precio": 200,
+     "unidades": 1
+    },
+    {
+     "objeto": "Tiradas SP",
+     "maximo": 10,
+     "precio": 200,
+     "unidades": 1
+    }
+   ]
+  }
+ ],
+ "origen": "fractura_temporal_V0.xlsx",
+ "bolsa": {
+  "Tiradas celepogeas": "47",
+  "Tiradas normales": "n:Custom Hero Scroll",
+  "Tiradas SP": "n:Time Emblem",
+  "Grabados rojos": "310",
+  "Grabados verdes": "309",
+  "Oro (M)": "gold",
+  "Tiradas facciones": "14",
+  "Tiradas dragónicas": "6000",
+  "Polvo morado": "1",
+  "Piedra de alma poco común": "997",
+  "Piedra de héroe de élite": "999",
+  "Hildwin": "1185",
+  "Eugene": "1178",
+  "Polvo azul (M)": "10000004",
+  "Cebos": "n:Baits",
+  "Cofres rojos": "87",
+  "T2": "158",
+  "T3": "255",
+  "T4": "n:T4 Stone Choice Chest",
+  "Monedas Poe": "n:Coin Poe",
+  "Cofre plateado": "618",
+  "Cofre de emblemas": "489",
+  "Cofre 1": "re:(temporal rift|fractura temporal).*\\bR1\\b",
+  "Cofre 2": "re:(temporal rift|fractura temporal).*\\bR2\\b",
+  "Cofre 3": "re:(temporal rift|fractura temporal).*\\bR3\\b"
+ },
+ "iconos": {
+  "T2": "158",
+  "T3": "284",
+  "T4": "452"
+ }
+}

@@ -1,19 +1,24 @@
-# Ignorar todos los __pycache__ en cualquier carpeta
-
+# --- Código: se sube. Datos personales y descargas: NUNCA se suben ---
 __pycache__/
+.venv/
+node_modules/
 
-
-
+# Sesión del navegador (cookies), credenciales y datos de tus cuentas
 perfil_esperian/
-
-
-
-# Ignorar la carpeta cuentas completa (en cualquier nivel del proyecto)
-
 cuentas/
+config_credenciales.json
+game_accounts.json
+sources_guardados.json
+preferencias.json
+api.txt
+actualizacion.json
 
+# Descargas (se regeneran desde el sitio)
+assets/
+guias/
 
+# Tus datos editables de la Fractura (la app parte de recursos/ si faltan)
+datos/
 
-# Ignorar cualquier archivo .json en todo el proyecto
-
-*.json 
+# Copias de seguridad que hace el actualizador
+respaldos/

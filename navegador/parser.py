@@ -1,60 +1,61 @@
 import json
+from datetime import datetime
+
 from .utils import num_s
 
+
 HEADERS = {
-    'runs': ['run_id','playedAt','owner','character','total_ms','total_s','bossesKilled','rounds','source_kind'],
-    'equipos': ['run_id','playedAt','boss_id','round_index','tiempo_ms','tiempo_s','bossesKilled','golden','mascota_id','mascota','mascota_nivel','mascota_jobs','heroes_count'],
-    'heroes': ['run_id','playedAt','boss_id','round_index','tiempo_s','slot','hero_id','hero_tid','heroe','faccion','calidad','SI','engraving','furniture','hyper','collection_id','collection_tid','coleccion','collection_tag','collection_level','collection_mythic','collection_affixes','mascota'],
-    'afijos': ['run_id','boss_id','slot','heroe','collection_id','coleccion','afijo_orden','nature','quality'],
-    'errores': ['run_id','error'],
+    'runs': ['run_id', 'playedAt', 'owner', 'character', 'total_ms', 'total_s', 'bossesKilled', 'rounds', 'source_kind'],
+    'equipos': ['run_id', 'playedAt', 'boss_id', 'round_index', 'tiempo_ms', 'tiempo_s', 'bossesKilled', 'golden', 'mascota_id', 'mascota', 'mascota_nivel', 'mascota_jobs', 'heroes_count'],
+    'heroes': ['run_id', 'playedAt', 'boss_id', 'round_index', 'tiempo_s', 'slot', 'hero_id', 'hero_tid', 'heroe', 'faccion', 'calidad', 'SI', 'engraving', 'furniture', 'hyper', 'collection_id', 'collection_tid', 'coleccion', 'collection_tag', 'collection_level', 'collection_mythic', 'collection_affixes', 'mascota'],
+    'afijos': ['run_id', 'boss_id', 'slot', 'heroe', 'collection_id', 'coleccion', 'afijo_orden', 'nature', 'quality'],
+    'errores': ['run_id', 'error'],
 }
+
 
 def procesar_y_ordenar_runs(runs):
     runs_procesadas = []
 
     for run in runs:
-        # 1. Filtro: Si 'mine' no es True, saltamos al siguiente elemento
         if not run.get("mine", False):
             continue
 
-        # 2. Convertir fecha a un formato más legible
         fecha_bruta = run.get("playedAt", "")
         try:
             fecha_obj = datetime.fromisoformat(fecha_bruta.replace("Z", "+00:00"))
             fecha_formateada = fecha_obj.strftime("%Y-%m-%d %H:%M:%S")
-        except:
+        except (TypeError, ValueError):
             fecha_formateada = fecha_bruta
 
-        # 3. Convertir timeMs (milisegundos) a Minutos y Segundos
-        time_ms = run.get("result", {}).get("timeMs", 0)
-        total_segundos = time_ms // 1000
+        # Algunas runs (las de temporadas nuevas) traen "result": null
+        resultado = run.get("result") or {}
+        time_ms = resultado.get("timeMs") or 0
+        total_segundos = int(time_ms) // 1000
         minutos = total_segundos // 60
         segundos = total_segundos % 60
         tiempo_legible = f"{minutos} min {segundos} seg"
 
-        # 4. Guardar datos procesados
         runs_procesadas.append({
             "id": run.get("id"),
             "character": run.get("character"),
-            "playedAt_raw": fecha_bruta,  # Para ordenar con precisión
+            "playedAt_raw": fecha_bruta,
             "fecha": fecha_formateada,
-            "bossesKilled": run.get("result", {}).get("bossesKilled", 0),
+            "bossesKilled": resultado.get("bossesKilled", 0),
             "tiempo": tiempo_legible,
             "owner": run.get("owner"),
             "mine": run.get("mine")
         })
 
-    # 5. Ordenar por fecha (de más antigua a más reciente)
-    runs_ordenadas = sorted(runs_procesadas, key=lambda x: x["played_at_raw"] if "played_at_raw" in x else x["playedAt_raw"], reverse=False)
-
-    return runs_ordenadas
+    return sorted(runs_procesadas, key=lambda run: run["playedAt_raw"])
 
 
 def unpack_sources(obj):
-    if not isinstance(obj, dict): raise ValueError('Respuesta sources no es un objeto JSON')
-    if str(obj.get('mode', '')).upper() == 'NC' and isinstance(obj.get('own'), list): return obj['own']
-    if isinstance(obj.get('own'), list): return obj['own']
-    if isinstance(obj.get('sources'), dict): return unpack_sources(obj['sources'])
+    if not isinstance(obj, dict):
+        raise ValueError('Respuesta sources no es un objeto JSON')
+    if isinstance(obj.get('own'), list):
+        return obj['own']
+    if isinstance(obj.get('sources'), dict):
+        return unpack_sources(obj['sources'])
     raise ValueError('No se encontró lista own en /api/nc-sim/sources')
 
 def flatten(runs):

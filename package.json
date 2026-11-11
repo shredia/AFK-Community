@@ -1,0 +1,23 @@
+{
+  "name": "nc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shredia/NC.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/shredia/NC/issues"
+  },
+  "homepage": "https://github.com/shredia/NC#readme",
+  "dependencies": {
+    "playwright": "^1.64.1"
+  }
+}

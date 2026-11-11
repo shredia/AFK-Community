@@ -9,6 +9,10 @@ from navegador.scraper import configurar_cuenta
 from navegador.scraper import obtener_game_accounts
 from playwright.async_api import async_playwright
 from navegador.scraper import guardar_game_accounts
+import keyring
+from idiomas import tr
+
+SERVICIO_KEYRING = "EsperianArchive-NC"
 
 class VentanaCuenta:
     def __init__(self, parent, perfil_path):
@@ -22,8 +26,8 @@ class VentanaCuenta:
         )
 
         self.top = tk.Toplevel(parent)
-        self.top.title("Configuración de Cuenta")
-        self.top.geometry("1000x1000")
+        self.top.title(tr("Acceso al sitio"))
+        self.top.geometry("900x700")
         self.top.resizable(True, True)
         self.top.grab_set()
 
@@ -48,14 +52,40 @@ class VentanaCuenta:
         self.cargar_cuentas_locales()
 
     def cargar_credenciales_guardadas(self):
-        if self.config_file.exists():
+        """Lee el correo del JSON y la contraseña del Administrador de credenciales de Windows."""
+        if not self.config_file.exists():
+            return
+
+        try:
+            with open(self.config_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return
+
+        correo = data.get("correo", "")
+        self.correo_var.set(correo)
+        if not correo:
+            return
+
+        # Migración: si quedó una contraseña en texto plano, moverla al keyring
+        password_plano = data.pop("password", None)
+        if password_plano:
             try:
-                with open(self.config_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self.correo_var.set(data.get("correo", ""))
-                    self.password_var.set(data.get("password", ""))
-            except Exception:
-                pass
+                keyring.set_password(SERVICIO_KEYRING, correo, password_plano)
+                self._escribir_config(data)
+            except Exception as e:
+                print(f"No se pudo migrar la contraseña al keyring: {e}")
+            self.password_var.set(password_plano)
+            return
+
+        try:
+            self.password_var.set(keyring.get_password(SERVICIO_KEYRING, correo) or "")
+        except Exception as e:
+            print(f"No se pudo leer la contraseña del keyring: {e}")
+
+    def _escribir_config(self, data):
+        with open(self.config_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
 
     def crear_interfaz(self):
 
@@ -65,7 +95,7 @@ class VentanaCuenta:
 
         frame_credenciales = ttk.LabelFrame(
             self.top,
-            text="Credenciales"
+            text=tr("Credenciales")
         )
 
         frame_credenciales.pack(
@@ -76,7 +106,7 @@ class VentanaCuenta:
 
         ttk.Label(
             frame_credenciales,
-            text="Correo:"
+            text=tr("Correo:")
         ).grid(
             row=0,
             column=0,
@@ -98,7 +128,7 @@ class VentanaCuenta:
 
         ttk.Label(
             frame_credenciales,
-            text="Contraseña:"
+            text=tr("Contraseña:")
         ).grid(
             row=1,
             column=0,
@@ -122,7 +152,7 @@ class VentanaCuenta:
         # Referencia guardada para deshabilitar si es necesario
         self.btn_guardar = ttk.Button(
             frame_credenciales,
-            text="Guardar credenciales",
+            text=tr("Guardar credenciales"),
             command=self.guardar_datos
         )
         self.btn_guardar.grid(
@@ -138,7 +168,7 @@ class VentanaCuenta:
 
         self.btn_actualizar = ttk.Button(
             self.top,
-            text="Actualizar / Descargar cuentas",
+            text=tr("Actualizar / Descargar cuentas"),
             command=self.ejecutar_descarga_cuentas
         )
 
@@ -150,7 +180,7 @@ class VentanaCuenta:
 
         frame_cuentas = ttk.LabelFrame(
             self.top,
-            text="Cuentas disponibles"
+            text=tr("Cuentas disponibles")
         )
 
         frame_cuentas.pack(
@@ -179,7 +209,7 @@ class VentanaCuenta:
         for columna, (titulo, ancho) in columnas.items():
             self.tabla_cuentas.heading(
                 columna,
-                text=titulo
+                text=tr(titulo)
             )
             self.tabla_cuentas.column(
                 columna,
@@ -205,7 +235,7 @@ class VentanaCuenta:
 
         frame_servidor = ttk.LabelFrame(
             self.top,
-            text="Servidor de la cuenta"
+            text=tr("Servidor de la cuenta")
         )
 
         frame_servidor.pack(
@@ -216,7 +246,7 @@ class VentanaCuenta:
 
         ttk.Label(
             frame_servidor,
-            text="Servidor:"
+            text=tr("Servidor:")
         ).pack(
             side="left",
             padx=10,
@@ -237,7 +267,7 @@ class VentanaCuenta:
 
         self.btn_cambiar_servidor = ttk.Button(
             frame_servidor,
-            text="Cambiar servidor",
+            text=tr("Cambiar servidor"),
             command=self.cambiar_servidor,
             state="disabled"
         )
@@ -253,7 +283,7 @@ class VentanaCuenta:
         async def _proceso_async():
             async with async_playwright() as p:
                 browser = await p.chromium.launch_persistent_context(
-                    user_data_dir=str(self.perfil_path),
+                    user_data_dir=str(self.perfil_path.resolve()),
                     headless=True
                 )
                 try:
@@ -266,101 +296,65 @@ class VentanaCuenta:
                         "https://esperianarchive.com/",
                         wait_until="domcontentloaded"
                     )
-                    datos = await obtener_game_accounts(page)
-                    return datos
+                    return await obtener_game_accounts(page)
                 finally:
                     await browser.close()
 
-        try:
-            print("⏳ Iniciando actualización de cuentas...")
-            datos = asyncio.run(_proceso_async())
+        def tarea_en_hilo():
+            try:
+                print("⏳ Iniciando actualización de cuentas...")
+                datos = asyncio.run(_proceso_async())
+                if not datos:
+                    raise RuntimeError(tr("No se obtuvieron datos de la API."))
 
-            if not datos:
-                print("❌ No se obtuvieron datos de la API.")
+                directorio_base = self.perfil_path.parent
+                accounts = guardar_game_accounts(datos, directorio_base)
+
+                ruta_general = directorio_base / "game_accounts.json"
+                with open(ruta_general, "w", encoding="utf-8") as f:
+                    json.dump(datos, f, ensure_ascii=False, indent=4)
+                print(f"📥 JSON general guardado: {ruta_general}")
+
+            except Exception as e:
+                mensaje = str(e)
+                print(f"❌ Error al actualizar las cuentas: {mensaje}")
+                self.top.after(0, lambda: self._descarga_fallida(mensaje))
                 return
 
-            directorio_base = self.perfil_path.parent
-            accounts = guardar_game_accounts(
-                datos,
-                directorio_base
-            )
+            self.top.after(0, lambda: self._descarga_completada(accounts))
 
-            ruta_general = directorio_base / "game_accounts.json"
-            with open(ruta_general, "w", encoding="utf-8") as f:
-                json.dump(datos, f, ensure_ascii=False, indent=4)
+        self.btn_actualizar.config(state="disabled")
+        threading.Thread(target=tarea_en_hilo, daemon=True).start()
 
-            print(f"📥 JSON general guardado: {ruta_general}")
-
-            self.cuentas_guardadas = accounts
-            self.personajes_guardados = []
-            nombres_cuentas = []
-
-            for cuenta in accounts:
-                account_id = cuenta.get("id")
-                selected_server = cuenta.get("selected_server")
-                roles = cuenta.get("roles", [])
-
-                for personaje in roles:
-                    uid = personaje.get("uid")
-                    nombre = personaje.get("name", "Sin nombre")
-                    servidor = personaje.get("svr_id")
-                    nivel = personaje.get("level", "N/A")
-
-                    self.personajes_guardados.append({
-                        "account_id": account_id,
-                        "selected_server": selected_server,
-                        "uid": uid,
-                        "svr_id": servidor,
-                        "name": nombre,
-                        "level": nivel,
-                        "datos": personaje
-                    })
-
-                    texto = f"{nombre} | Servidor {servidor} | Nivel {nivel}"
-                    nombres_cuentas.append(texto)
-
-            self.actualizar_tabla_cuentas()
-
-            print("\n" + "=" * 50)
-            print("✅ ACTUALIZACIÓN COMPLETADA")
-            print(f"Cuentas: {len(accounts)}")
-            print(f"Personajes: {len(self.personajes_guardados)}")
-            print(f"Directorio: {directorio_base / 'cuentas'}")
-            print("=" * 50)
-
-        except Exception as e:
-            print(f"❌ Error al actualizar las cuentas: {e}")
-
-    def al_seleccionar_cuenta(self, event=None):
-        seleccion = self.tabla_cuentas.selection()
-        if not seleccion:
-            return
-
-        item_id = seleccion[0]
-        valores = self.tabla_cuentas.item(item_id, "values")
-        account_id = str(valores[0])
-        servidor_fila = str(valores[1])
-
-        cuenta = next(
-            (c for c in self.cuentas_guardadas if str(c.get("id")) == account_id),
-            None
-        )
-
-        if cuenta is None:
-            return
-
-        servidores = sorted(
+    def _descarga_completada(self, accounts):
+        """Se ejecuta en el hilo de Tk tras descargar las cuentas."""
+        self.btn_actualizar.config(state="normal")
+        self.cuentas_guardadas = accounts
+        self.personajes_guardados = [
             {
-                str(rol["svr_id"])
-                for rol in cuenta.get("roles", [])
-                if rol.get("svr_id") is not None
-            },
-            key=lambda s: ((0, int(s)) if s.isdigit() else (1, s))
-        )
+                "account_id": cuenta.get("id"),
+                "selected_server": cuenta.get("selected_server"),
+                "uid": personaje.get("uid"),
+                "svr_id": personaje.get("svr_id"),
+                "name": personaje.get("name", "Sin nombre"),
+                "level": personaje.get("level", "N/A"),
+                "datos": personaje,
+            }
+            for cuenta in accounts
+            for personaje in cuenta.get("roles", [])
+        ]
+        self.actualizar_tabla_cuentas()
 
-        self.combo_servidores["values"] = servidores
-        self.servidor_var.set(servidor_fila)
-        self.btn_cambiar_servidor.config(state="normal")
+        print("\n" + "=" * 50)
+        print("✅ ACTUALIZACIÓN COMPLETADA")
+        print(f"Cuentas: {len(accounts)}")
+        print(f"Personajes: {len(self.personajes_guardados)}")
+        print(f"Directorio: {self.perfil_path.parent / 'cuentas'}")
+        print("=" * 50)
+
+    def _descarga_fallida(self, mensaje):
+        self.btn_actualizar.config(state="normal")
+        messagebox.showerror(tr("Error"), tr('No se pudieron actualizar las cuentas:\n{0}', mensaje), parent=self.top)
 
     def cargar_cuentas_locales(self):
         directorio_cuentas = self.perfil_path.parent / "cuentas"
@@ -490,7 +484,7 @@ class VentanaCuenta:
     def cambiar_servidor(self):
         seleccion = self.tabla_cuentas.selection()
         if not seleccion:
-            messagebox.showwarning("Atención", "Selecciona una cuenta.", parent=self.top)
+            messagebox.showwarning(tr("Atención"), tr("Selecciona una cuenta."), parent=self.top)
             return
 
         item_id = seleccion[0]
@@ -499,7 +493,7 @@ class VentanaCuenta:
         nuevo_servidor = self.servidor_var.get()
 
         if not nuevo_servidor:
-            messagebox.showwarning("Atención", "Selecciona un servidor.", parent=self.top)
+            messagebox.showwarning(tr("Atención"), tr("Selecciona un servidor."), parent=self.top)
             return
 
         cuenta = next(
@@ -517,7 +511,7 @@ class VentanaCuenta:
         }
 
         if nuevo_servidor not in servidores_disponibles:
-            messagebox.showerror("Error", "El servidor no pertenece a esta cuenta.", parent=self.top)
+            messagebox.showerror(tr("Error"), tr("El servidor no pertenece a esta cuenta."), parent=self.top)
             return
 
         servidor_original = next(
@@ -546,21 +540,30 @@ class VentanaCuenta:
                 self.tabla_cuentas.focus(nuevo_item_id)
                 self.tabla_cuentas.see(nuevo_item_id)
 
-            messagebox.showinfo("Servidor actualizado", f"Servidor local seleccionado: {nuevo_servidor}", parent=self.top)
+            messagebox.showinfo(tr("Servidor actualizado"), tr('Servidor local seleccionado: {0}', nuevo_servidor), parent=self.top)
 
         except Exception as e:
-            messagebox.showerror("Error", f"No se pudo guardar el servidor:\n{e}", parent=self.top)
+            messagebox.showerror(tr("Error"), tr('No se pudo guardar el servidor:\n{0}', e), parent=self.top)
 
     def guardar_datos(self):
-        correo = self.correo_var.get()
+        correo = self.correo_var.get().strip()
         password = self.password_var.get()
 
         if not correo or not password:
-            messagebox.showwarning("Atención", "Por favor completa ambos campos.", parent=self.top)
+            messagebox.showwarning(tr("Atención"), tr("Por favor completa ambos campos."), parent=self.top)
+            return
+
+        try:
+            # La contraseña va al Administrador de credenciales de Windows;
+            # en el JSON solo se guarda el correo.
+            keyring.set_password(SERVICIO_KEYRING, correo, password)
+            self._escribir_config({"correo": correo})
+        except Exception as e:
+            messagebox.showerror(tr("Error"), tr('No se pudieron guardar las credenciales:\n{0}', e), parent=self.top)
             return
 
         self.btn_guardar.config(state="disabled")
-        messagebox.showinfo("Procesando", "Abriendo navegador para iniciar sesión automáticamente...", parent=self.top)
+        messagebox.showinfo(tr("Procesando"), tr("Abriendo navegador para iniciar sesión automáticamente..."), parent=self.top)
 
         def tarea_en_hilo():
             try:
@@ -569,10 +572,18 @@ class VentanaCuenta:
                     correo=correo,
                     password=password
                 ))
-                self.top.after(0, lambda: messagebox.showinfo("Éxito", "¡Sesión iniciada y guardada correctamente en el perfil!", parent=self.top))
-                self.top.after(0, self.top.destroy)
             except Exception as e:
-                self.top.after(0, lambda: messagebox.showerror("Error", f"Ocurrió un error al iniciar sesión:\n{e}", parent=self.top))
-                self.top.after(0, lambda: self.btn_guardar.config(state="normal"))
+                mensaje = str(e)
+                self.top.after(0, lambda: self._login_fallido(mensaje))
+                return
+            self.top.after(0, self._login_correcto)
 
         threading.Thread(target=tarea_en_hilo, daemon=True).start()
+
+    def _login_correcto(self):
+        messagebox.showinfo(tr("Éxito"), tr("¡Sesión iniciada y guardada correctamente en el perfil!"), parent=self.top)
+        self.top.destroy()
+
+    def _login_fallido(self, mensaje):
+        messagebox.showerror(tr("Error"), tr('Ocurrió un error al iniciar sesión:\n{0}', mensaje), parent=self.top)
+        self.btn_guardar.config(state="normal")
