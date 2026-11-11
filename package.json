@@ -8,15 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/shredia/NC.git"
+    "url": "git+https://github.com/shredia/AFK-Community.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/shredia/NC/issues"
+    "url": "https://github.com/shredia/AFK-Community/issues"
   },
-  "homepage": "https://github.com/shredia/NC#readme",
+  "homepage": "https://github.com/shredia/AFK-Community#readme",
   "dependencies": {
     "playwright": "^1.64.1"
   }

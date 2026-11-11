@@ -1,5 +1,5 @@
 """
-Actualización automática desde GitHub (shredia/NC).
+Actualización automática desde GitHub (shredia/AFK-Community).
 
   - Solo se actualiza con VERSIONES PUBLICADAS: etiquetas vX.Y.Z (tags) del repositorio.
   - Repositorio público: no hace falta nada. Si fuera privado, se usa un token de solo lectura guardado
@@ -25,9 +25,10 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-REPO = "shredia/NC"
+REPO = "shredia/AFK-Community"
 API = f"https://api.github.com/repos/{REPO}"
-SERVICIO_TOKEN = "NC-GitHub"
+SERVICIO_TOKEN = "AFK-Community-GitHub"
+SERVICIO_TOKEN_ANTIGUO = "NC-GitHub"   # nombre anterior del repositorio
 USUARIO_TOKEN = "token"
 AGENTE = "nc-actualizador"
 ARCHIVO_ESTADO = "actualizacion.json"
@@ -72,7 +73,8 @@ def es_copia_desarrollo():
 def leer_token():
     try:
         import keyring
-        return keyring.get_password(SERVICIO_TOKEN, USUARIO_TOKEN)
+        return (keyring.get_password(SERVICIO_TOKEN, USUARIO_TOKEN)
+                or keyring.get_password(SERVICIO_TOKEN_ANTIGUO, USUARIO_TOKEN))
     except Exception:
         return None
 
@@ -100,11 +102,11 @@ def _pedir(url, token, binario=False, timeout=20):
             datos = r.read()
     except urllib.error.HTTPError as e:
         if e.code == 401:
-            raise ErrorActualizacion("GitHub rechazó el token (revisa que tenga acceso de lectura a shredia/NC).")
+            raise ErrorActualizacion("GitHub rechazó el token (revisa que tenga acceso de lectura a shredia/AFK-Community).")
         if e.code == 403:
             raise ErrorActualizacion("GitHub limitó las consultas por ahora; inténtalo más tarde.")
         if e.code == 404:
-            raise ErrorActualizacion("No se encontró el repositorio shredia/NC (si es privado, agrega un token).")
+            raise ErrorActualizacion("No se encontró el repositorio shredia/AFK-Community (si es privado, agrega un token).")
         raise ErrorActualizacion(f"GitHub respondió {e.code}.")
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise ErrorActualizacion(f"Sin conexión con GitHub ({e.__class__.__name__}).")

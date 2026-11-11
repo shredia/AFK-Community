@@ -78,7 +78,7 @@ class VentanaActualizacion:
         ttk.Label(marco, style="Muted.TLabel", wraplength=580, justify="left", text=tr(
             "Solo hace falta si el repositorio es privado (si es público, déjalo vacío). Para crearlo:\n"
             "1. Abre la página de tokens (botón de abajo) → «Fine-grained token».\n"
-            "2. Repository access: «Only select repositories» → shredia/NC.\n"
+            "2. Repository access: «Only select repositories» → shredia/AFK-Community.\n"
             "3. Permissions → Repository → Contents: «Read-only». Nada más.\n"
             "4. Genera el token, cópialo y pégalo aquí. Se guarda en el llavero de Windows, no en un archivo.")
         ).pack(anchor="w")
