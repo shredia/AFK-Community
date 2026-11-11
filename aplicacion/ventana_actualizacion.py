@@ -73,10 +73,10 @@ class VentanaActualizacion:
                                        command=lambda: instalar(self.top, self.info, self.al_cambiar))
         self.btn_instalar.pack(side="left", padx=8)
 
-        marco = ttk.LabelFrame(t, text=tr(" Token de GitHub (solo lectura) "), padding=10)
+        marco = ttk.LabelFrame(t, text=tr(" Token de GitHub (opcional) "), padding=10)
         marco.pack(fill="x", padx=16, pady=12)
         ttk.Label(marco, style="Muted.TLabel", wraplength=580, justify="left", text=tr(
-            "Tu repositorio es privado, así que la app necesita un token para leerlo. Créalo en GitHub:\n"
+            "Solo hace falta si el repositorio es privado (si es público, déjalo vacío). Para crearlo:\n"
             "1. Abre la página de tokens (botón de abajo) → «Fine-grained token».\n"
             "2. Repository access: «Only select repositories» → shredia/NC.\n"
             "3. Permissions → Repository → Contents: «Read-only». Nada más.\n"
@@ -100,9 +100,8 @@ class VentanaActualizacion:
                                    + (tr("  ·  copia de desarrollo (git)") if desarrollo else ""))
         tiene = bool(act.leer_token())
         self.lbl_token.configure(text=tr("✓ Token guardado en el llavero de Windows.") if tiene
-                                 else tr("Sin token: no se pueden buscar actualizaciones."),
-                                 foreground=tema.OK if tiene else tema.WARN)
-        self.btn_buscar.configure(state="normal" if tiene else "disabled")
+                                 else tr("Sin token (no hace falta si el repositorio es público)."),
+                                 foreground=tema.OK if tiene else tema.MUTED)
 
     def _guardar_token(self):
         token = self.var_token.get().strip()

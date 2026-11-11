@@ -196,7 +196,7 @@ class VentanaPrincipal:
         """Al abrir: revisa en segundo plano (como mucho cada 12 h) si hay versión nueva publicada."""
         import threading
         from navegador import actualizador as act
-        if not act.leer_token() or act.es_copia_desarrollo():
+        if act.es_copia_desarrollo():
             return
 
         def trabajo():

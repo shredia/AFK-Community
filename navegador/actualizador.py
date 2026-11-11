@@ -1,8 +1,9 @@
 """
-Actualización automática desde GitHub (repositorio privado shredia/NC).
+Actualización automática desde GitHub (shredia/NC).
 
   - Solo se actualiza con VERSIONES PUBLICADAS: etiquetas vX.Y.Z (tags) del repositorio.
-  - El token de GitHub (solo lectura) se guarda en el llavero de Windows, nunca en un archivo.
+  - Repositorio público: no hace falta nada. Si fuera privado, se usa un token de solo lectura guardado
+    en el llavero de Windows (nunca en un archivo).
   - Se reemplaza solo el código. Tus datos no se tocan: cuentas/, perfil_esperian/, assets/, guias/, datos/,
     credenciales y preferencias.
   - Antes de reemplazar, se guarda una copia del código actual en respaldos/<versión>/.
@@ -90,17 +91,20 @@ def guardar_token(token):
 # ---------------- GitHub ----------------
 
 def _pedir(url, token, binario=False, timeout=20):
-    req = urllib.request.Request(url, headers={
-        "User-Agent": AGENTE, "Accept": "application/vnd.github+json",
-        "Authorization": f"Bearer {token}", "X-GitHub-Api-Version": "2022-11-28"})
+    cabeceras = {"User-Agent": AGENTE, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+    if token:   # solo hace falta si el repositorio es privado
+        cabeceras["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=cabeceras)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             datos = r.read()
     except urllib.error.HTTPError as e:
-        if e.code in (401, 403):
+        if e.code == 401:
             raise ErrorActualizacion("GitHub rechazó el token (revisa que tenga acceso de lectura a shredia/NC).")
+        if e.code == 403:
+            raise ErrorActualizacion("GitHub limitó las consultas por ahora; inténtalo más tarde.")
         if e.code == 404:
-            raise ErrorActualizacion("No se encontró el repositorio: revisa que el token tenga acceso a shredia/NC.")
+            raise ErrorActualizacion("No se encontró el repositorio shredia/NC (si es privado, agrega un token).")
         raise ErrorActualizacion(f"GitHub respondió {e.code}.")
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise ErrorActualizacion(f"Sin conexión con GitHub ({e.__class__.__name__}).")
@@ -110,8 +114,6 @@ def _pedir(url, token, binario=False, timeout=20):
 def ultima_version(token=None):
     """{'version', 'tag', 'notas'} de la etiqueta vX.Y.Z más alta (o None si no hay ninguna)."""
     token = token or leer_token()
-    if not token:
-        raise ErrorActualizacion("Falta el token de GitHub.")
     etiquetas = _pedir(f"{API}/tags?per_page=100", token)
     versiones = [t["name"] for t in etiquetas if re.fullmatch(r"v?\d+(\.\d+){0,2}", t.get("name", ""))]
     if not versiones:
