@@ -1,2 +1,2 @@
 """Versión de la aplicación (la usa el actualizador)."""
-VERSION = "1.1.1"
+VERSION = "1.1.2"
