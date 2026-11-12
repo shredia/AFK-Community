@@ -213,8 +213,9 @@ class VentanaPrincipal:
 
         ttk.Label(marco, text=tr("Cómo empezar"), style="Seccion.TLabel").pack(anchor="w", pady=(26, 8))
         pasos = [
-            ("importar", N_("Importar tus datos"), N_("Descarga afk-runs.json y afk-inventory.json del sitio e "
-                                                      "impórtalos en Ajustes → Importar / exportar.")),
+            ("importar", N_("Importar tus datos"), N_("Descarga afk-inventory.json y afk-runs.json del sitio e "
+                                                      "impórtalos en Ajustes → Importar / exportar, "
+                                                      "primero el inventario.")),
             ("cuenta", N_("Mi cuenta"), N_("Tus héroes, colecciones y mascotas: el optimizador sabe qué tienes.")),
             ("amigos", N_("Amigos"), N_("Importa las runs de tus amigos para copiar sus mejores equipos.")),
             ("optimizador", N_("Optimizador"), N_("El mejor equipo por jefe sin repetir héroes, y qué te falta para mejorar.")),

@@ -30,9 +30,9 @@ URL_CUENTAS = BASE + "/game-accounts"  # elegir personaje y hacer Fetch
 URL_DESCARGAS = URL_RUNS
 PASOS_DESCARGA = N_("1. Inicia sesión en esperianarchive.com en tu navegador.\n"
                     "2. En «Game accounts» elige tu personaje (servidor) y pulsa «Fetch … inventory and runs».\n"
-                    "3. En «My runs» descarga afk-runs.json, y en «Inventory» descarga afk-inventory.json.\n"
-                    "4. Vuelve aquí y pulsa «Elegir archivo e importar…» con cada uno.")
-MENSAJE_DESARROLLO = N_("La conexión con esperianarchive.com está en desarrollo. Mientras tanto, importa afk-runs.json y afk-inventory.json en Ajustes → Importar / exportar.")
+                    "3. En «Inventory» descarga afk-inventory.json, y en «My runs» descarga afk-runs.json.\n"
+                    "4. Vuelve aquí y pulsa «Elegir archivo e importar…»: primero el inventario, después las runs.")
+MENSAJE_DESARROLLO = N_("La conexión con esperianarchive.com está en desarrollo. Mientras tanto, importa afk-inventory.json y después afk-runs.json en Ajustes → Importar / exportar.")
 SERVICIO_KEYRING = "EsperianArchive-NC"
 ARCHIVO_CONFIG = "config_credenciales.json"
 AGENTE = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "

@@ -24,7 +24,7 @@ from pathlib import Path, PurePosixPath
 
 from .cuenta import (ARCHIVO_CUENTA_ACTUAL, _coleccion_de_fetch, cargar_cuenta_actual, compactar_inventario,
                      completar_imagenes)
-from .rutas import cargar_mapa_personajes, carpeta_personaje
+from .rutas import CARPETA_SIN_ASIGNAR, cargar_mapa_personajes, carpeta_personaje, mover
 from .visuales import Visuales
 from idiomas import tr
 
@@ -302,9 +302,14 @@ def cuentas_personales(base_dir):
                 runs = len(_leer_json(c / "runs.json") or [])
                 servidores.append((c, tr("Servidor {0} · {1} · {2} runs", c.name, pj.get("name") or pj.get("uid"), runs)))
         fecha = str(ficha.get("fetchedAt") or "")
-        texto = tr("{0} · actualizada {1}", ficha.get("email") or cuenta.name, fecha[:10] or "?")
-        salida.append({"carpeta": cuenta, "texto": texto, "servidores": servidores, "fecha": fecha})
-    salida.sort(key=lambda x: x["fecha"], reverse=True)
+        local = bool(ficha.get("local"))
+        if local and not servidores:
+            continue
+        texto = (tr("Personajes importados (afk-inventory.json)") if local
+                 else tr("{0} · actualizada {1}", ficha.get("email") or cuenta.name, fecha[:10] or "?"))
+        salida.append({"carpeta": cuenta, "texto": texto, "servidores": servidores, "fecha": fecha, "local": local})
+    # primero los personajes importados (mientras el sitio esté en desarrollo son los únicos), luego lo más reciente
+    salida.sort(key=lambda x: (x["local"], x["fecha"]), reverse=True)
     return salida
 
 
@@ -315,6 +320,61 @@ def carpeta_activa(base_dir, carpeta):
     """
     ficha = _leer_json(Path(carpeta) / f"{Path(carpeta).name}.json") or {}
     return cargar_mapa_personajes(base_dir).get(str(ficha.get("uid") or ""), Path(carpeta))
+
+
+# ------------------------------------------------------------
+# Personajes sin el sitio: los registra afk-inventory.json
+# ------------------------------------------------------------
+
+CARPETA_LOCAL = "local"   # cuentas/local/<servidor>/: personajes registrados al importar su inventario
+
+
+def personaje_de_inventario(base_dir, inv):
+    """
+    {"uid", "servidor", "nivel", "carpeta", "nombre"} del personaje del afk-inventory.json.
+    'carpeta' es None si la app aún no lo conoce (hay que registrarlo con registrar_personaje).
+    El archivo trae la UID y el servidor, pero no el nombre del personaje.
+    """
+    cuenta = inv.get("account") or {}
+    uid = str(cuenta.get("id") or "")
+    servidor = (inv.get("source") or {}).get("serverId") or ((inv.get("source") or {}).get("accountCheck") or {}).get("serverId")
+    if not uid or not servidor:
+        raise ValueError(tr("El archivo no dice qué personaje es (falta la UID o el servidor)."))
+    carpeta = cargar_mapa_personajes(base_dir).get(uid)
+    ficha = _leer_json(carpeta / f"{carpeta.name}.json") or {} if carpeta else {}
+    return {"uid": uid, "servidor": str(servidor), "nivel": cuenta.get("level"), "carpeta": carpeta,
+            "nombre": ficha.get("name") or ""}
+
+
+def registrar_personaje(base_dir, uid, servidor, nombre, nivel=None):
+    """
+    Crea cuentas/local/<servidor>/ con la ficha del personaje y la devuelve. Si la app ya lo conocía, devuelve su
+    carpeta. Lo que se hubiera importado antes sin dueño (cuentas/_sin_asignar/<uid>/) pasa a la carpeta nueva.
+    """
+    uid, servidor, nombre = str(uid), str(servidor).strip(), str(nombre or "").strip() or f"UID {uid}"
+    ya = cargar_mapa_personajes(base_dir).get(uid)
+    if ya:
+        return ya
+    raiz = Path(base_dir) / "cuentas" / CARPETA_LOCAL
+    if not (raiz / "account.json").exists():
+        # fetchedAt vacío: si un día el sitio trae este mismo personaje, gana la cuenta del sitio
+        _escribir_json(raiz / "account.json", {"id": CARPETA_LOCAL, "email": None, "local": True, "fetchedAt": ""},
+                       indent=2)
+    carpeta = raiz / servidor
+    if (carpeta / f"{carpeta.name}.json").exists():   # otro personaje en el mismo servidor (raro)
+        carpeta = raiz / f"{servidor}_{uid}"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    _escribir_json(carpeta / f"{carpeta.name}.json",
+                   {"uid": uid, "name": nombre, "level": nivel, "svr_id": _entero(servidor, servidor)}, indent=2)
+    sin_dueno = Path(base_dir) / "cuentas" / CARPETA_SIN_ASIGNAR / uid
+    if sin_dueno.is_dir():
+        for hijo in list(sin_dueno.iterdir()):
+            mover(hijo, carpeta / hijo.name)
+        try:
+            sin_dueno.rmdir()
+        except OSError:
+            pass
+    return carpeta
 
 
 def sugerir_destino_runs(base_dir, runs):
@@ -536,9 +596,23 @@ def conservar_importadas(nuevas_del_sitio, anteriores):
 # afk-inventory.json
 # ============================================================
 
-def importar_inventario(base_dir, inv, progreso=_sin_progreso):
-    """Guarda la captura como cuenta_actual.json (lo mismo que 'Mi cuenta → Fetch', sin conexión)."""
+def importar_inventario(base_dir, inv, progreso=_sin_progreso, nombre=None):
+    """
+    Guarda la captura como cuenta_actual.json (lo mismo que 'Mi cuenta → Fetch', sin conexión).
+    Si el personaje es nuevo, lo registra en cuentas/local/<servidor>/ con ese nombre.
+    """
     base_dir = Path(base_dir)
+    info = personaje_de_inventario(base_dir, inv)
+    if info["carpeta"] is None:
+        nueva = registrar_personaje(base_dir, info["uid"], info["servidor"], nombre, info["nivel"])
+        progreso(tr("Personaje nuevo registrado: {0} · servidor {1} · UID {2}",
+                    nombre or f"UID {info['uid']}", info["servidor"], info["uid"]))
+    else:
+        nueva = info["carpeta"]
+        ficha = nueva / f"{nueva.name}.json"
+        datos_ficha = _leer_json(ficha) or {}
+        if info["nivel"] and datos_ficha.get("level") != info["nivel"]:   # el nivel sí viene en el archivo
+            _escribir_json(ficha, {**datos_ficha, "level": info["nivel"]}, indent=2)
     compacto = compactar_inventario({"data": inv, "capturedAt": inv.get("capturedAt")})
     uid = str((compacto.get("cuenta") or {}).get("id") or "")
     carpeta = carpeta_personaje(base_dir, cargar_mapa_personajes(base_dir), uid)

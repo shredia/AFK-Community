@@ -22,8 +22,8 @@ desktop.ini
 datos_usuario/
 
 # Ubicación antigua de esos datos (hasta la 1.2.0; la app los mueve sola a datos_usuario/)
-perfil_esperian/
-cuentas/
+/perfil_esperian/
+/cuentas/
 config_credenciales.json
 game_accounts.json
 sources_guardados.json
@@ -35,14 +35,14 @@ actualizacion.json
 afk-*.json
 
 # Descargas (se regeneran desde el sitio)
-assets/
-guias/
+/assets/
+/guias/
 
 # Tus datos editables de la Fractura (la app parte de recursos/ si faltan)
-datos/
+/datos/
 
 # Copias de seguridad que hace el actualizador
-respaldos/
+/respaldos/
 
 # Versión portable e instalador: se generan con herramientas/construir_exe.py y se suben al Release, no al código
 build/

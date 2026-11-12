@@ -87,11 +87,24 @@ def pyinstaller():
     return {p.name for p in APP.iterdir()}   # lo que trae el runtime de Python
 
 
+def archivos_del_codigo():
+    """
+    Los archivos de CODIGO que van en la app: lo que git sube (o subiría), nunca lo del .gitignore
+    (p. ej. las Guías, que siguen en desarrollo y solo existen en tu PC).
+    """
+    r = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", *CODIGO],
+                       cwd=str(RAIZ), capture_output=True, text=True, encoding="utf-8")
+    if r.returncode != 0:
+        sys.exit(f"⚠ No se pudo listar el código con git: {r.stderr.strip()}")
+    return [RAIZ / p for p in r.stdout.splitlines() if (RAIZ / p).is_file()]
+
+
 def copiar_codigo():
     print("Copiando el código…")
-    for carpeta in CODIGO:
-        shutil.copytree(RAIZ / carpeta, APP / carpeta, dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    for origen in archivos_del_codigo():
+        destino = APP / origen.relative_to(RAIZ)
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(origen, destino)
     for archivo in ARCHIVOS:
         shutil.copy2(RAIZ / archivo, APP / archivo)
     # El README va arriba, junto al .exe: sus imágenes están en app/docs/

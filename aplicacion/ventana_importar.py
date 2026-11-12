@@ -43,13 +43,16 @@ class VentanaImportar:
         caja = ttk.LabelFrame(marco, text=tr("Importar"), padding=12)
         caja.pack(fill="x")
         ttk.Label(caja, justify="left", wraplength=680, text=tr(
-            "• afk-runs.json: runs de NC. Al importar te pregunta de quién son: tuyas (cuenta y servidor) "
-            "o de un amigo. Se agregan las que faltan; a las que ya bajaste del sitio se les suman las "
-            "estadísticas (daño, curación, energía…). Las runs de otros modos (CR) se omiten.\n"
-            "• runs compartidas (.json de esta app): runs con el héroe del SP de cada ronda y sus estadísticas.\n"
-            "• afk-inventory.json: la captura de tu cuenta (recursos, héroes, colecciones, equipo, mascotas). "
-            "Reemplaza 'Mi cuenta' (la anterior queda como cuenta_actual.anterior.json).\n"
-            "• .zip: una copia exportada desde esta app.")).pack(anchor="w")
+            "1. afk-inventory.json (primero): la captura de un personaje (recursos, héroes, colecciones, equipo, "
+            "mascotas). Trae su UID y su servidor: si es nuevo, la app lo registra y te pide su nombre. "
+            "Reemplaza su 'Mi cuenta' (la anterior queda como cuenta_actual.anterior.json).\n"
+            "2. afk-runs.json: runs de NC. No dice de qué personaje son: eliges uno de los tuyos o un amigo. "
+            "Se agregan las que faltan; a las que ya tenías se les suman las estadísticas (daño, curación, "
+            "energía…). Las runs de otros modos (CR) se omiten.\n"
+            "• Runs compartidas (.json de esta app): runs con el héroe del SP de cada ronda y sus estadísticas.\n"
+            "• .zip: una copia exportada desde esta app.\n"
+            "¿Varios personajes? Importa el afk-inventory.json de cada uno (en el sitio, haz Fetch de ese "
+            "personaje y vuelve a descargarlo).")).pack(anchor="w")
         from navegador.sitio import URL_CUENTAS, URL_RUNS, URL_INVENTARIO, PASOS_DESCARGA
         donde = ttk.Frame(caja)
         donde.pack(fill="x", pady=(10, 0))
@@ -131,9 +134,15 @@ class VentanaImportar:
                     self.top.after(0, lambda: self._preguntar_dueno(prog, datos, resumen, sugerida, tipo))
                     return
                 if tipo == "inventario":
-                    r = imp.importar_inventario(self.base_dir, datos, prog.log)
-                    prog.log(tr("Mi cuenta actualizada: {0} héroes, {1} colecciones, {2} objetos.",
-                                r["heroes"], r["colecciones"], r["objetos"]))
+                    info = imp.personaje_de_inventario(self.base_dir, datos)
+                    if info["carpeta"] is None:   # personaje nuevo: el archivo no trae su nombre, se pregunta
+                        prog.log(tr("Personaje nuevo: UID {0} · servidor {1}.", info["uid"], info["servidor"]))
+                        self.top.after(0, lambda: self._preguntar_nombre(prog, datos, info))
+                        return
+                    prog.log(tr("Personaje: {0} · servidor {1} · UID {2}",
+                                info["nombre"] or "?", info["servidor"], info["uid"]))
+                    self._importar_inventario(prog, datos)
+                    return
                 elif tipo == "copia":
                     carpetas = imp.contenido_copia(ruta)
                     prog.log(tr("La copia trae: {0}", ", ".join("/".join(c) for c in carpetas)))
@@ -147,6 +156,27 @@ class VentanaImportar:
                 prog.terminar(tr("Error: {0}", error), ok=False)
 
         threading.Thread(target=leer, daemon=True).start()
+
+    def _importar_inventario(self, prog, datos, nombre=None):
+        r = imp.importar_inventario(self.base_dir, datos, prog.log, nombre=nombre)
+        prog.log(tr("Mi cuenta actualizada: {0} héroes, {1} colecciones, {2} objetos.",
+                    r["heroes"], r["colecciones"], r["objetos"]))
+        prog.log(tr("Ahora puedes importar las runs de este personaje (afk-runs.json) y elegirlo en «Son mías»."))
+        self._terminar(prog)
+
+    def _preguntar_nombre(self, prog, datos, info):
+        nombre = DialogoNombrePersonaje(prog.top, info).resultado
+        if nombre is None:
+            prog.terminar(tr("Importación cancelada."), ok=False)
+            return
+
+        def importar():
+            try:
+                self._importar_inventario(prog, datos, nombre)
+            except Exception as error:  # noqa: BLE001
+                prog.terminar(tr("Error: {0}", error), ok=False)
+
+        threading.Thread(target=importar, daemon=True).start()
 
     def _preguntar_dueno(self, prog, runs, resumen, sugerida, tipo="runs"):
         dialogo = DialogoDuenoRuns(prog.top, self.base_dir, resumen, sugerida)
@@ -227,6 +257,59 @@ class VentanaImportar:
         threading.Thread(target=trabajo, daemon=True).start()
 
 
+class DialogoNombrePersonaje:
+    """Personaje nuevo en afk-inventory.json: pide su nombre (el archivo trae UID y servidor, no el nombre)."""
+
+    def __init__(self, parent, info):
+        self.resultado = None
+        self.top = tk.Toplevel(parent)
+        self.top.title(tr("Personaje nuevo"))
+        self.top.resizable(False, False)
+        self.top.transient(parent)
+        self.top.protocol("WM_DELETE_WINDOW", self._cancelar)
+
+        m = ttk.Frame(self.top, padding=16)
+        m.pack(fill="both", expand=True)
+        ttk.Label(m, text=tr("Personaje nuevo"), style="Titulo.TLabel").pack(anchor="w")
+        ttk.Label(m, wraplength=440, justify="left", text=tr(
+            "Este inventario es de un personaje que la app aún no conoce:\n"
+            "servidor {0} · UID {1} · nivel {2}.", info["servidor"], info["uid"], info["nivel"] or "?")).pack(
+            anchor="w", pady=(4, 8))
+        ttk.Label(m, style="Muted.TLabel", wraplength=440, justify="left", text=tr(
+            "El archivo no trae el nombre del personaje. Escríbelo para reconocerlo en la app "
+            "(si lo dejas vacío se usa la UID).")).pack(anchor="w")
+        fila = ttk.Frame(m)
+        fila.pack(fill="x", pady=(10, 0))
+        ttk.Label(fila, text=tr("Nombre:")).pack(side="left")
+        self.entrada = ttk.Entry(fila, width=32)
+        self.entrada.pack(side="left", padx=8)
+        self.entrada.bind("<Return>", lambda e: self._aceptar())
+
+        botones = ttk.Frame(m)
+        botones.pack(fill="x", pady=(14, 0))
+        ttk.Button(botones, text=tr("Cancelar"), command=self._cancelar).pack(side="right")
+        ttk.Button(botones, text=tr("Importar"), style="Acento.TButton", command=self._aceptar).pack(
+            side="right", padx=8)
+
+        self.entrada.focus_set()
+        self.top.grab_set()
+        self.top.wait_window()
+        try:
+            parent.grab_set()   # devolver el foco modal a la ventana de progreso
+        except tk.TclError:
+            pass
+
+    def _aceptar(self):
+        self.resultado = self.entrada.get().strip()
+        self.top.grab_release()
+        self.top.destroy()
+
+    def _cancelar(self):
+        self.resultado = None
+        self.top.grab_release()
+        self.top.destroy()
+
+
 class DialogoDuenoRuns:
     """Pregunta de quién son las runs: tuyas (cuenta + servidor) o de un amigo. Modal; deja .resultado."""
 
@@ -251,14 +334,15 @@ class DialogoDuenoRuns:
             "El archivo trae {0} runs de NC, del {1} al {2}. No dice qué personaje las jugó.",
             resumen["nc"], resumen["desde"], resumen["hasta"])).pack(anchor="w", pady=(2, 10))
 
-        self.tipo = tk.StringVar(value="propia" if self.cuentas or not self.lista_amigos else "amigo")
+        self.tipo = tk.StringVar(value="propia" if self.cuentas else "amigo")
 
         # ---- tuyas
         ttk.Radiobutton(m, text=tr("Son mías"), value="propia", variable=self.tipo,
-                        command=self._actualizar_estado).pack(anchor="w")
+                        command=self._actualizar_estado,
+                        state="normal" if self.cuentas else "disabled").pack(anchor="w")
         self.marco_propia = ttk.Frame(m, padding=(24, 4, 0, 8))
         self.marco_propia.pack(fill="x")
-        ttk.Label(self.marco_propia, text=tr("Cuenta del sitio:")).grid(row=0, column=0, sticky="w", pady=2)
+        ttk.Label(self.marco_propia, text=tr("Cuenta:")).grid(row=0, column=0, sticky="w", pady=2)
         self.combo_cuenta = ttk.Combobox(self.marco_propia, state="readonly", width=50,
                                          values=[c["texto"] for c in self.cuentas])
         self.combo_cuenta.grid(row=0, column=1, sticky="w", padx=8, pady=2)
@@ -266,7 +350,10 @@ class DialogoDuenoRuns:
         ttk.Label(self.marco_propia, text=tr("Servidor:")).grid(row=1, column=0, sticky="w", pady=2)
         self.combo_servidor = ttk.Combobox(self.marco_propia, state="readonly", width=50)
         self.combo_servidor.grid(row=1, column=1, sticky="w", padx=8, pady=2)
-        if carpeta_sugerida is not None:
+        if not self.cuentas:
+            texto = tr("Aún no tienes personajes. Importa primero el afk-inventory.json de ese personaje: "
+                       "la app reconoce su UID y servidor, y después podrás elegirlo aquí.")
+        elif carpeta_sugerida is not None:
             texto = tr("Sugerido: servidor {0} ({1} de estas runs ya están ahí).", carpeta_sugerida.name, coincidencias)
         else:
             texto = tr("Ninguno de tus servidores tiene runs con estas fechas: elige uno, o márcalas como de un amigo.")

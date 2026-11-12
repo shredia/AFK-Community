@@ -51,15 +51,20 @@ Before downloading anything, ask the site to read your latest game data:
 
 ### Step 2: download the files
 
+- `afk-inventory.json` from **[Inventory](https://esperianarchive.com/inventory)**: your character (heroes, collections, pets, resources).
 - `afk-runs.json` from **[My runs](https://esperianarchive.com/my-runs)**: your runs.
-- `afk-inventory.json` from **[Inventory](https://esperianarchive.com/inventory)**: your account (heroes, collections, pets, resources).
 
-The **🌐 My runs** and **🌐 Inventory** buttons in the app open those pages for you.
+The **🌐 Inventory** and **🌐 My runs** buttons in the app open those pages for you.
 
 ### Step 3: import them into the app
 
-1. Go to **Settings → Import / export → Choose file and import…** and import both files.
-2. Open **Optimizer** and press **▶ Optimize**.
+Go to **Settings → Import / export → Choose file and import…**:
+
+1. **Import `afk-inventory.json` first.** It contains your character's UID and server, so the app recognizes it. The first time, the app asks for the character's name (the file doesn't include it).
+2. **Then import `afk-runs.json`.** When the app asks whose runs they are, choose **They're mine** and pick your character.
+3. Open **Optimizer** and press **▶ Optimize**.
+
+**Several characters?** The inventory only describes the character you fetched. Repeat steps 1 and 2 for each one: on the site, Fetch that character, download both files again and import them.
 
 Repeat these steps whenever you play new runs or upgrade your heroes. Importing again only adds what's new.
 
@@ -152,12 +157,12 @@ Coming soon.
 Works with the files you download from the site by hand; you don't need to log in.
 
 **Import** with **Choose file and import…**. The app recognizes the file by itself:
+- **`afk-inventory.json` (import it first):** a snapshot of one character (resources, heroes, collections, gear, pets). It includes the character's **UID and server**. If the character is new, the app registers it and asks for its name, which isn't in the file. It replaces that character's *My account*; the previous one is kept as `cuenta_actual.anterior.json`.
 - **`afk-runs.json`:** your NC runs. The file doesn't say which character played them, so the app asks **whose runs they are**:
-  - **They're mine:** pick the site account and server. The app suggests the server that already has runs from those dates.
+  - **They're mine:** pick one of your characters. The app suggests the one that already has runs from those dates. If you have none yet, import that character's inventory first.
   - **They're a friend's:** type their name (and server, if you want).
 
   Only missing runs are added. Runs you already had get their statistics (damage, healing, energy…) added. Runs from other modes are skipped.
-- **`afk-inventory.json`:** a snapshot of your account (resources, heroes, collections, gear, pets). It replaces *My account*; the previous one is kept as `cuenta_actual.anterior.json`.
 - **Shared runs (`.json` exported by this app):** runs that include who used the SP in each round, plus statistics.
 - **`.zip` backup** exported by this app. Its files replace the ones you have with the same name.
 

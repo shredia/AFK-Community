@@ -20,14 +20,14 @@ _DE_ANTES = ["cuentas", "assets", "datos", "guias", "respaldos", "perfil_esperia
              "nombres_recursos.json", "api.txt"]
 
 
-def _mover(vieja, nueva):
+def mover(vieja, nueva):
     """Mueve vieja -> nueva. Si las dos son carpetas, junta el contenido (lo que ya está en nueva se queda)."""
     if not nueva.exists():
         nueva.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(vieja), str(nueva))
     elif vieja.is_dir() and nueva.is_dir():
         for hijo in list(vieja.iterdir()):
-            _mover(hijo, nueva / hijo.name)
+            mover(hijo, nueva / hijo.name)
         try:
             vieja.rmdir()
         except OSError:
@@ -40,12 +40,38 @@ def migrar_datos():
         vieja = RAIZ / nombre
         if vieja.exists():
             try:
-                _mover(vieja, DATOS / nombre)
+                mover(vieja, DATOS / nombre)
             except OSError as error:   # p. ej. un archivo abierto: se reintenta la próxima vez
                 print(f"No se pudo mover {nombre} a {DATOS.name}/: {error}")
 
 
+ASSETS_INCLUIDOS = RAIZ / "recursos" / "assets"   # imágenes y tablas del juego que vienen con la app
+
+
+def sembrar_assets():
+    """
+    Copia a DATOS/assets/ las imágenes y tablas que vienen con la app y aún no tienes, para verlas sin
+    descargarlas del sitio. Nunca reemplaza lo que ya está (lo descargado puede ser más nuevo).
+    """
+    if not ASSETS_INCLUIDOS.is_dir():
+        return
+    destino_raiz = DATOS / "assets"
+    for origen in ASSETS_INCLUIDOS.rglob("*"):
+        if not origen.is_file():
+            continue
+        destino = destino_raiz / origen.relative_to(ASSETS_INCLUIDOS)
+        if destino.exists():
+            continue
+        try:
+            destino.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(origen, destino)
+        except OSError as error:   # p. ej. sin espacio: se reintenta la próxima vez
+            print(f"No se pudo copiar {origen.name}: {error}")
+            return
+
+
 migrar_datos()
+sembrar_assets()
 
 CARPETA_SIN_ASIGNAR = "_sin_asignar"
 
