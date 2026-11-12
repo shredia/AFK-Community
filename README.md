@@ -65,14 +65,20 @@ Repeat these steps whenever you play new runs or upgrade your heroes. Importing 
 
 ## What you can do
 
-### Optimizer
-Finds the best team for each of this week's 6 bosses **without repeating heroes** (and, optionally, without repeating pets).
+The menu on the left has three groups: **Nightmare Corridor**, **Account** and **Other**. **⚙ Settings** is at the bottom.
 
-- **★ Summary:** one card per boss showing the chosen team, its time and the big total time. If a friend clears a boss faster, the card tells you, and whether you could copy that team.
+### ⌂ Home
+A quick status of your data: whether your account is imported, how many runs with details you have and on how many servers, and how many friends you've added (with how many runs). It also has shortcuts to the site pages and to each section.
+
+## Nightmare Corridor (NC)
+
+### ★ Optimizer
+Finds the best team for each of this week's 6 bosses **without repeating heroes** (and, optionally, without repeating pets). Press **▶ Optimize** to run it.
+
+- **★ Summary:** one card per boss showing the chosen team, its time and the total time. If a friend clears a boss faster, the card tells you, and whether you could copy that team.
 - **Boss tabs:** your teams next to another source's teams. You see the differences between the two teams and between the builds of the heroes they share (SI, engraving, furniture, collection, gear). You also get a table of every hero used against that boss and who is faster with it.
 - **🎯 What I'm missing:** your friends' teams that beat yours, how many seconds you'd gain and what you lack to build them: a hero, SI level, engraving, furniture, collection or pet. At the top it lists the single upgrades that gain you the most time.
 - **📊 Statistics:** damage, % of total damage, healing, defense, kills, energy and HP for each hero in every round, plus your pet's damage and the boss's remaining HP.
-- **⌕ Explore:** every team used against any boss, or your full runs sorted by total time.
 - **Hero detail:** click any portrait to see its full build, which collections the guide recommends for it, and buttons to ban or limit it.
 
 ### ⚙ Configure (inside the optimizer)
@@ -81,6 +87,12 @@ Finds the best team for each of this week's 6 bosses **without repeating heroes*
 - **My roster:** what you own, taken from your inventory. You can fix anything by hand, which helps when the inventory is outdated.
 - **Search:** complete runs only; no borrowed or trial heroes; use only friends' teams you can build (✅) or almost build (🟡).
 - **View:** portrait size.
+
+### ⌕ Explore teams
+Browse every team used against any boss, or your full runs sorted by total time. Useful to look for ideas outside the optimizer's choice.
+
+### ↗ Weekly progress
+A chart and a table of your best complete run each week, plus the sum of your best time on each boss that week. It also compares each week with the last time you faced the same bosses.
 
 ### Special Power (SP)
 Only special heroes (Fawkes, Thoran, Eluard, …) have an SP. Their portraits show an **SP** badge:
@@ -95,31 +107,70 @@ If a team has only one special hero, the app marks that hero automatically, beca
 - **Borrowed** (mercenaries) come as their owner built them. They're labeled, and you can exclude them.
 - **Rented dimensional heroes** (e.g. Albedo) are **yours**: you ascend and equip them. The app treats them as your own heroes.
 
-### Weekly progress
-A chart and a table of your best complete run each week, plus the sum of your best time on each boss that week. It also compares each week with the last time you faced the same bosses.
+## Account
 
-### Friends
-Import a friend's `afk-runs.json`, or a shared runs file they send you. The optimizer can mix their teams with yours, and **What I'm missing** shows what to copy from them. In this section you can also rename friends, optimize with their runs, or send them to the Recycle Bin.
+### ◉ My account
+Your resources, heroes, collections, gear and pets from your last `afk-inventory.json` import. For each hero you see its build, whether its collection meets the guide's recommendation, and how you've done with it in NC.
 
-### My account
-Your resources, heroes, collections, gear and pets from your last inventory import. For each hero you see its build, whether its collection meets the guide's recommendation, and how you've done with it in NC.
+### ☺ Friends
+Import a friend's `afk-runs.json`, or a shared runs file they send you (see *Import / export*). The optimizer can mix their teams with yours, and **What I'm missing** shows what to copy from them. In this section you can also rename friends, optimize with their runs, or send them to the Recycle Bin.
 
-### Temporal Rift
-A planner for the floor rewards, choice chests and medal shops, up to your Friday goal.
+Friends' runs are kept apart: they never mix with your own runs or with *My account*.
+
+## Other
+
+### ◈ Temporal Rift
+A planner for the Temporal Rift event: what each floor gives you, which chest options to pick, what to buy in the medal shops, and whether your medals are enough to reach your goal by Friday. Your progress is saved per account and server.
+
+**Top bar**
+- **Account:** which of your servers you're planning.
+- **Floor reached** and **Medals in game:** type what the game shows. Everything else is calculated from these two numbers.
+- **🎯 Goal for Friday:** the floor you want to reach. **Current floor + 20** sets it quickly. The app shows what you'll earn between your floor and your goal.
+- **⟲ Reset:** *Reset purchases (done and planned)*, *Remove only the planned purchases*, or *Reset the whole Rift (new season)*, which clears purchases, chosen chests and spent items and asks for your new floor.
+- **Import from Excel…:** optional. Loads rewards, shops and your progress from a `fractura_temporal_*.xlsx` sheet (sheets `pisos`, `Total` and `Tienda`). The app already includes the rewards table, so you don't need it to start.
+
+**Medals:** a summary of *Medals earned*, *Spent*, *Current balance*, *To earn on floors*, *Planned purchases* and *Balance at the end*. It tells you if you'll have medals left over, or how many you're short and on which floor.
+
+**Tabs.** Each one has a view that looks like the game (**🎮 Visual**, or **🛒 As in the game** in the shops) and a **📋 Table** view.
+- **Summary per resource:** for every resource, how much is *In your bag*, *Obtained* in the Rift, still coming *To the goal* and *Still obtainable*, and how much **You'll have** (bag + floors left + planned chests and purchases). **Shop and chest resources only** hides the rest.
+- **Choice chests:** each chest opens by choosing **one** option. *Now* = chests you already have and chose; *Planned* = chests you'll get before your goal and what you'll pick. Click an option to choose 1; right-click for more (choose all, plan, remove). If you opened chests in the game without recording them here, use **I already spent the missing ones** so the counts match.
+- **Medal shops:** switch between **🛒 Buy** (what you already bought) and **📝 Plan** (what you'll buy with the medals you still have to earn). Locked shops show how many floors unlock them, and you can plan them in advance. Click an item to buy or plan 1; right-click for more.
+- **Rewards per floor:** every floor and its rewards. ✓ = obtained, highlighted = what you'll earn until your Friday goal, light = locked. Right-click a floor to mark it as **your current floor** or as **Friday's goal**.
+
+**🔗 Link to the bag…:** connects a Rift resource to the matching item of your inventory (some show up as "Item 100000xx"), so the app can read how many you have. Your bag comes from your last `afk-inventory.json` import.
+
+### ✎ Guides
+Coming soon.
+
+## ⚙ Settings
+
+- **General:** language (English or Spanish), your installed version and **Check for updates…**
+- **Import / export:** see below.
+- **Site access:** logging in to esperianarchive.com from the app. *In development.*
 
 ### Import / export
-- **Import:**
-  - `afk-runs.json`: runs.
-  - `afk-inventory.json`: account.
-  - Shared runs files.
-  - `.zip` backups.
+Works with the files you download from the site by hand; you don't need to log in.
 
-  If you import `afk-runs.json` again, runs you already have aren't duplicated; they just get their statistics added.
-- **Export runs to share (.json):** your NC runs including **who used the SP in each round** and the statistics. Send this file to friends; plain `afk-runs.json` doesn't record the SP.
-- **Export .zip:** a full backup of a server or a friend, to move it to another PC.
+**Import** with **Choose file and import…**. The app recognizes the file by itself:
+- **`afk-runs.json`:** your NC runs. The file doesn't say which character played them, so the app asks **whose runs they are**:
+  - **They're mine:** pick the site account and server. The app suggests the server that already has runs from those dates.
+  - **They're a friend's:** type their name (and server, if you want).
 
-### Language
-English and Spanish. You can switch in **Settings → General**.
+  Only missing runs are added. Runs you already had get their statistics (damage, healing, energy…) added. Runs from other modes are skipped.
+- **`afk-inventory.json`:** a snapshot of your account (resources, heroes, collections, gear, pets). It replaces *My account*; the previous one is kept as `cuenta_actual.anterior.json`.
+- **Shared runs (`.json` exported by this app):** runs that include who used the SP in each round, plus statistics.
+- **`.zip` backup** exported by this app. Its files replace the ones you have with the same name.
+
+The **🌐 Game accounts (Fetch)**, **🌐 My runs** and **🌐 Inventory** buttons open the site pages where you refresh and download those files.
+
+**Export**, choosing one of your servers or a friend:
+- **Export runs to share (.json):** only the NC runs, with **who used the SP in each round** and the statistics. This is the file to send to a friend, because plain `afk-runs.json` doesn't record the SP.
+- **Export .zip:** everything from that server or friend (runs, details, My account, Temporal Rift, blocks), to move it to another PC or keep a backup.
+
+**What the files don't include:** both site files share each hero's build (quality, SI, engraving, furniture, gear and collection). They don't include the hero's role (tank/marksman/mage), engraving nodes, pet level or which slot each piece of furniture goes in. The app fills those in from what you already have for the same hero or pet.
+
+### Updates
+The app checks GitHub for new versions. When there is one, a **⬆ A new version is available** notice and an **Update now** button show up. Updating replaces only the app's code. A copy of the previous code is saved in `datos_usuario/respaldos/`, and your data isn't touched. Restart the app when it finishes.
 
 ## Privacy
 

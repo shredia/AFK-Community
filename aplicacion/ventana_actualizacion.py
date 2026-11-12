@@ -21,7 +21,7 @@ def instalar(parent, info, al_terminar=None):
             "Aquí se actualiza con «git pull». Las demás instalaciones sí se actualizan solas."), parent=parent)
         return
     if not messagebox.askyesno(tr("Actualizar"), tr(
-            "¿Instalar la versión {0}?\n\nSe guarda una copia del código actual en respaldos/. "
+            "¿Instalar la versión {0}?\n\nSe guarda una copia del código actual en datos_usuario/respaldos/. "
             "Tus datos (cuentas, sesión, guías, Fractura) no se tocan.", info["version"]), parent=parent):
         return
     prog = VentanaProgreso(parent, tr("Actualizando"), cancelable=False)

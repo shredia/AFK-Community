@@ -942,7 +942,7 @@
     "¿Borrar tus ajustes y volver al perfil incluido?": "",
     "¿De quién son estas runs?": "",
     "¿Enviar a la papelera las {0} runs de {1}?\nPuedes recuperarlas desde la Papelera de reciclaje.": "",
-    "¿Instalar la versión {0}?\n\nSe guarda una copia del código actual en respaldos/. Tus datos (cuentas, sesión, guías, Fractura) no se tocan.": "",
+    "¿Instalar la versión {0}?\n\nSe guarda una copia del código actual en datos_usuario/respaldos/. Tus datos (cuentas, sesión, guías, Fractura) no se tocan.": "",
     "¿Puedes?": "",
     "¿Quitar las {0} reglas?": "",
     "¿Quién es más rápido?": "",

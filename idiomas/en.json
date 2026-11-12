@@ -1158,7 +1158,7 @@
     "¿Borrar tus ajustes y volver al perfil incluido?": "Delete your settings and go back to the included profile?",
     "¿De quién son estas runs?": "Whose runs are these?",
     "¿Enviar a la papelera las {0} runs de {1}?\nPuedes recuperarlas desde la Papelera de reciclaje.": "Send {1}'s {0} runs to the Recycle Bin?\nYou can recover them from the Recycle Bin.",
-    "¿Instalar la versión {0}?\n\nSe guarda una copia del código actual en respaldos/. Tus datos (cuentas, sesión, guías, Fractura) no se tocan.": "Install version {0}?\n\nA copy of the current code is saved in respaldos/. Your data (accounts, session, guides, Rift) isn't touched.",
+    "¿Instalar la versión {0}?\n\nSe guarda una copia del código actual en datos_usuario/respaldos/. Tus datos (cuentas, sesión, guías, Fractura) no se tocan.": "Install version {0}?\n\nA copy of the current code is saved in datos_usuario/respaldos/. Your data (accounts, session, guides, Rift) isn't touched.",
     "¿Puedes?": "Can you?",
     "¿Quitar las {0} reglas?": "Remove the {0} rules?",
     "¿Quién es más rápido?": "Who is faster?",
