@@ -57,7 +57,7 @@ class VentanaFractura:
         self.cuenta = None
         self.fichas = Fichas(self)
 
-        self.top = tk.Toplevel(parent)
+        self.top = tema.ventana(parent)
         self.top.title(tr("Fractura temporal"))
         self.top.geometry("1280x860")
         self.top.minsize(1000, 640)

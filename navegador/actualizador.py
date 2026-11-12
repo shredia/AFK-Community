@@ -197,7 +197,7 @@ def aplicar(info, progreso=print):
 
     cambio_req = archivos.get(Path("requirements.txt"), req_antes) != req_antes
     if cambio_req and CONGELADO:
-        progreso("⚠ Esta versión usa librerías nuevas: descarga también el .exe portable más reciente.")
+        progreso("⚠ Esta versión usa librerías nuevas: descarga e instala también el instalador (o el .zip portable) más reciente.")
     elif cambio_req:
         progreso("Instalando librerías nuevas (requirements.txt)…")
         r = subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(RAIZ / "requirements.txt")],

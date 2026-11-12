@@ -13,9 +13,9 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import ttk, messagebox, simpledialog
 
-from navegador.cuenta import (cargar_cuenta_actual, sincronizar_cuenta, hace_cuanto, uso_en_nc,
+from navegador.cuenta import (cargar_cuenta_actual, es_arrendado_cuenta, sincronizar_cuenta, hace_cuanto, uso_en_nc,
                               indice_heroes)
-from navegador.optimizador import cargar_indice, construir_composiciones
+from navegador.optimizador import cargar_indice, construir_composiciones, arrendados_de
 from navegador.rutas import cargar_mapa_personajes
 from navegador.scraper import hacer_fetch_servidor, ARCHIVO_ULTIMO_FETCH
 from navegador.visuales import Visuales
@@ -80,7 +80,7 @@ class VentanaCuentaActual:
         self._items = {}
         self.nombres_recursos = self._cargar_nombres()
 
-        self.top = tk.Toplevel(parent)
+        self.top = tema.ventana(parent)
         self.top.title(tr("Mi cuenta"))
         self.top.geometry("1450x900")
         self.top.minsize(1100, 700)
@@ -134,6 +134,13 @@ class VentanaCuentaActual:
         self.btn_fetch.pack(side="left", padx=4)
         self.btn_sync = ttk.Button(f1, text=tr("Solo sincronizar (sin fetch)"), command=self.sincronizar)
         self.btn_sync.pack(side="left", padx=4)
+        from navegador.sitio import SITIO_EN_DESARROLLO
+        self._sitio_desactivado = SITIO_EN_DESARROLLO
+        if SITIO_EN_DESARROLLO:
+            self.btn_fetch.configure(state="disabled")
+            self.btn_sync.configure(state="disabled")
+            ttk.Label(f1, text=tr("🚧 Fetch y sincronización: en desarrollo · importa afk-inventory.json en Ajustes"),
+                      foreground=tema.WARN).pack(side="left", padx=8)
 
         self.lbl_fetch = ttk.Label(arriba, text="", font=("Arial", 10, "bold"))
         self.lbl_fetch.pack(anchor="w", padx=8)
@@ -245,7 +252,7 @@ class VentanaCuentaActual:
             def tarea():
                 try:
                     datos = cargar_indice(carpeta)
-                    comps = construir_composiciones(datos["runs"], (self.estado or {}).get("heroes_temporales") or ())
+                    comps = construir_composiciones(datos["runs"], (self.estado or {}).get("heroes_temporales") or (), arrendados_de((self.estado or {})))
                 except Exception:
                     comps = []
                 self._en_ui(lambda: self._fin_comps(carpeta, comps))
@@ -275,7 +282,8 @@ class VentanaCuentaActual:
             fecha = ultimo.get("fetchedAt")
             extra = ""
             if ultimo.get("nc_disponibles") is not None:
-                extra = f" · NC: el juego devolvió {ultimo.get('nc_traidas')} de {ultimo.get('nc_disponibles')} runs"
+                extra = " · " + tr("NC: el juego devolvió {0} de {1} runs", ultimo.get('nc_traidas'),
+                                   ultimo.get('nc_disponibles'))
         elif str(cuenta.get("selectedServer")) == str(self.server_id):
             fecha, extra = cuenta.get("fetchedAt"), ""
         else:
@@ -313,7 +321,8 @@ class VentanaCuentaActual:
             mueble = h.get("furniture") or {}
             equipo = " ".join(f"{(g.get('part') or '?')[:1]}:{self.vis.tier_equipo(g) or '—'}★{g.get('stars', 0)}"
                               for g in sorted(h.get("gear") or [], key=lambda g: g.get("slot", 0))) or "—"
-            nombre = h.get("name", "?") + ("  " + tr("(temporal)") if h.get("temporal") else "")
+            nombre = h.get("name", "?") + ("  " + (tr("(arrendado)") if es_arrendado_cuenta(h, e) else tr("(temporal)"))
+                                            if h.get("temporal") else "")
             if h.get("solo_copias"):
                 nombre += "  " + tr("(solo copia)")
             recs = self.vis.recomendaciones_heroe(h.get("tid"))
@@ -435,7 +444,8 @@ class VentanaCuentaActual:
                 nombres = ", ".join(self.vis.nombre_calidad(q) for q in obj["copias"])
                 linea(tr("Copias base"), nombres + ("  " + tr("(no está desarrollado)") if obj.get("solo_copias") else ""))
             if obj.get("temporal"):
-                linea(tr("Copia"), tr("Temporal (de prueba)"))
+                linea(tr("Copia"), tr("Arrendado (dimensional): es tuyo, lo subes tú")
+                      if es_arrendado_cuenta(obj, self.estado) else tr("Temporal (de prueba)"))
             self._escribir_guia_heroe(obj)
             self._escribir_uso_nc(uso_en_nc(self.comps, tid=obj.get("tid")), obj.get("name", ""))
             self._enfoque_nc = {"texto": obj.get("name", "").split(" - ")[0]}
@@ -589,7 +599,7 @@ class VentanaCuentaActual:
     # ---------------- fetch y sincronización ----------------
 
     def _bloquear(self, si):
-        estado = "disabled" if si else "normal"
+        estado = "disabled" if si or getattr(self, "_sitio_desactivado", False) else "normal"
         self.btn_fetch.configure(state=estado)
         self.btn_sync.configure(state=estado)
 

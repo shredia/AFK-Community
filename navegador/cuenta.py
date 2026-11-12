@@ -127,6 +127,9 @@ def compactar_inventario(inv):
         "mascotas": mascotas,
         "artefactos": artefactos,
         "heroes_temporales": [str(h.get("id")) for h in datos.get("temporaryHeroes") or []],
+        # dimensionales arrendados (source_type 4): son tuyos, los subes tú
+        "heroes_arrendados": [str(h.get("id")) for h in datos.get("temporaryHeroes") or []
+                              if str(h.get("source_type")) in ("4", "None")],
         "heroes_basicos": [
             {"id": str(h.get("id")), "tid": h.get("tid"), "nivel": h.get("level"), "calidad": h.get("quality"),
              "source_type": h.get("source_type"), "nombre": h.get("name")}
@@ -285,8 +288,10 @@ async def sincronizar_cuenta(perfil_path, base_dir, progreso=_sin_progreso):
         c["equipada_en"] = equipada_en.get(str(c.get("id")))
 
     temporales = set(compacto["heroes_temporales"])
+    arrendados = set(compacto.get("heroes_arrendados", compacto["heroes_temporales"]))
     for h in roster:
         h["temporal"] = str(h.get("id")) in temporales
+        h["arrendado"] = str(h.get("id")) in arrendados
 
     estado = {
         **compacto,
@@ -344,6 +349,13 @@ def _norm(texto):
     return "".join(c for c in texto if unicodedata.category(c) != "Mn").strip()
 
 
+def es_arrendado_cuenta(h, estado):
+    """Héroe del roster que es un dimensional arrendado (tuyo)."""
+    if h.get("arrendado"):
+        return True
+    return bool(h.get("temporal")) and "heroes_arrendados" not in (estado or {})
+
+
 def indice_heroes(estado):
     """
     Todos tus héroes por nombre (y por nombre corto antes de " - "):
@@ -365,7 +377,7 @@ def indice_heroes(estado):
 
     vistos = set()
     for h in estado.get("roster") or []:
-        if h.get("temporal"):
+        if h.get("temporal") and not es_arrendado_cuenta(h, estado):
             continue
         copias = copias_por_tid.get(str(h.get("tid")), [])
         q = max([int(h.get("quality") or 0)] + [int(c.get("calidad") or 0) for c in copias])

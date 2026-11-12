@@ -125,7 +125,9 @@ class VentanaActualizacion:
                 ultima = act.ultima_version()
                 self.top.after(0, lambda: self._mostrar(ultima, None))
             except Exception as error:   # noqa: BLE001
-                self.top.after(0, lambda: self._mostrar(None, str(error).splitlines()[0]))
+                # 'error' deja de existir al salir del except: se copia el texto antes
+                mensaje = (str(error).splitlines() or [repr(error)])[0]
+                self.top.after(0, lambda: self._mostrar(None, mensaje))
         threading.Thread(target=trabajo, daemon=True).start()
 
     def _mostrar(self, ultima, error):

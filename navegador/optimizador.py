@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from idiomas import tr, N_
 
-VERSION_INDICE = 2          # 2: cada héroe trae "origen" (propio / prestado / prueba / ...)
+VERSION_INDICE = 5          # 2: cada héroe trae "origen" (propio / prestado / prueba / ...)
 ARCHIVO_INDICE = "optimizador_indice.json"
 ARCHIVO_BANEOS = "baneos.json"
 
@@ -52,15 +52,31 @@ def _firma_stats(h):
     return (h.get("quality"), h.get("sig"), h.get("engraving"))
 
 
+def es_id_temporal(hid):
+    try:
+        return int(str(hid)) >= ID_TEMPORAL_MIN
+    except ValueError:
+        return False
+
+
+def es_arrendado(h):
+    """
+    Héroe dimensional arrendado: es TUYO (lo asciendes, le cambias colección, SI...), aunque el juego lo
+    marque 'borrowed'. Los prestados de verdad (mercenarios) tienen ids temporales (≥ 2^32).
+    """
+    return bool(h.get("arrendado")) or (bool(h.get("prestado")) and not es_id_temporal(h.get("id")))
+
+
 def origen_heroe(h, ids_roster, plantillas_borrow, plantillas_test):
     """Clasifica la copia del héroe usada en una ronda."""
     hid = str(h.get("id") or "")
-    if hid in ids_roster:
+    if es_arrendado(h):            # dimensional arrendado: cuenta como tuyo
         return PROPIO
-    try:
-        temporal = int(hid) >= ID_TEMPORAL_MIN
-    except ValueError:
-        temporal = False
+    if h.get("prestado"):          # runs importadas (afk-runs.json): el archivo dice si era prestado
+        return PRESTADO
+    temporal = es_id_temporal(hid)
+    if hid in ids_roster and not temporal:   # un id temporal nunca es tuyo (mercenario / prueba)
+        return PROPIO
     if temporal:
         tid = str(h.get("tid"))
         if plantillas_test.get(tid) == _firma_stats(h):
@@ -81,19 +97,24 @@ def _extraer_run(detalle, resumen):
         for h in r.get("heroes") or []:
             compacto = _compactar_heroe(h)
             compacto["origen"] = origen_heroe(h, ids_roster, borrow, test)
+            if es_arrendado(h):
+                compacto["arrendado"] = True
+                compacto.pop("prestado", None)
             heroes.append(compacto)
         rondas.append({
             "index": r.get("index", 0),
             "bossId": str(r.get("bossId")),
             "recorded": r.get("recorded") or {},
             "golden": r.get("golden"),
+            "estadisticas": r.get("estadisticas") or {},   # daño de mascota / jefe (runs importadas)
             "pet": r.get("pet") or {},
             "heroes": heroes,
         })
     return {
         "id": str(detalle.get("id") or resumen.get("id")),
-        "playedAt": resumen.get("playedAt", ""),
-        "result": resumen.get("result") or {},
+        # las runs importadas (afk-runs.json) traen fecha y resultado en el propio detalle
+        "playedAt": resumen.get("playedAt") or detalle.get("playedAt") or "",
+        "result": resumen.get("result") or detalle.get("result") or {},
         "rounds": rondas,
     }
 
@@ -149,7 +170,8 @@ def cargar_indice(carpeta_servidor, progreso=lambda m: None):
         rid = archivo.stem
         indice["runs"][rid] = _extraer_run(detalle, resumenes.get(rid, {}))
         indice["archivos"][archivo.name] = actuales[archivo.name]
-        indice["refs"] = _extraer_referencias(detalle) or indice["refs"]
+        if detalle.get("gearOptions") or not indice["refs"]:
+            indice["refs"] = _extraer_referencias(detalle)
 
     # Los resúmenes (fecha, resultado) pueden llegar después que el detalle
     for rid, run in indice["runs"].items():
@@ -191,6 +213,8 @@ class Composicion:
     mascota_nombre: str = ""
     hero_origenes: tuple = ()  # PROPIO / PRESTADO / PRUEBA / TEMPORAL / FUERA_ROSTER
     veces: int = 1           # cuántas veces se usó este mismo equipo contra el jefe
+    estadisticas: dict = field(default_factory=dict)   # {"mascota": {...}, "jefe": {...}} si las hay
+    sp_manual: bool = False  # el héroe del SP lo marcaste tú (había varios especiales)
 
     @property
     def firma(self):
@@ -203,13 +227,76 @@ class Composicion:
         return [(h, o) for h, o in zip(self.heroes, self.hero_origenes) if o != PROPIO]
 
 
-def construir_composiciones(runs, heroes_temporales=()):
+SP_DESCONOCIDO = "?"   # varios héroes especiales y el dato no dice cuál usó su Special Power
+
+
+def deducir_golden(heroes, golden):
+    """
+    Slot del héroe que usó su Special Power. Solo los héroes especiales (hyper) lo tienen:
+    con uno solo en el equipo se activa automáticamente; con dos o más se elige uno.
+    Si el dato no viene (runs importadas de afk-runs.json): uno -> ese; varios -> SP_DESCONOCIDO.
+    """
+    if golden not in (None, ""):
+        return golden
+    especiales = [h.get("slot") for h in heroes if h.get("hyper")]
+    if len(especiales) == 1:
+        return especiales[0]
+    return SP_DESCONOCIDO if especiales else None
+
+
+ARCHIVO_SP = "sp_manual.json"   # {"<run_id>|<posición>": slot} cuando hay varios especiales
+
+
+def _clave_sp(comp):
+    return f"{comp.run_id}|{comp.posicion}"
+
+
+def cargar_sp_manual(carpeta):
+    try:
+        datos = json.loads((Path(carpeta) / ARCHIVO_SP).read_text(encoding="utf-8"))
+        return datos if isinstance(datos, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def aplicar_sp_manual(comps, carpeta):
+    """Pone en cada ronda dudosa el héroe del SP que marcaste a mano."""
+    manual = cargar_sp_manual(carpeta)
+    if not manual:
+        return comps
+    for c in comps:
+        slot = manual.get(_clave_sp(c))
+        if slot is not None and (c.golden in (None, SP_DESCONOCIDO) or c.sp_manual):
+            c.golden, c.sp_manual = slot, True
+    return comps
+
+
+def guardar_sp_manual(carpeta, comp, slot):
+    """Guarda (o borra, con slot None) el héroe del SP de una ronda."""
+    manual = cargar_sp_manual(carpeta)
+    if slot is None:
+        manual.pop(_clave_sp(comp), None)
+    else:
+        manual[_clave_sp(comp)] = slot
+    (Path(carpeta) / ARCHIVO_SP).write_text(json.dumps(manual, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def arrendados_de(estado):
+    """Ids de héroes dimensionales arrendados según la captura de la cuenta."""
+    estado = estado or {}
+    if "heroes_arrendados" in estado:
+        return estado.get("heroes_arrendados") or ()
+    return estado.get("heroes_temporales") or ()   # capturas viejas: los temporales eran los arrendados
+
+
+def construir_composiciones(runs, heroes_temporales=(), heroes_arrendados=None):
     """
     Una composición por (run, jefe).
     heroes_temporales: ids que el inventario marca como temporales (colaboraciones de prueba);
     si aparecen como "ya no está en tu roster" se reclasifican como "de prueba".
     """
     temporales = {str(i) for i in heroes_temporales}
+    arrendados = temporales if heroes_arrendados is None else {str(i) for i in heroes_arrendados}
     comps = []
     for run in runs:
         rondas = sorted(run.get("rounds") or [], key=lambda r: r.get("index", 0))
@@ -237,7 +324,10 @@ def construir_composiciones(runs, heroes_temporales=()):
                 ids.append(ident)
                 nombres.append(nombre)
                 origen = h.get("origen") or PROPIO
-                if origen == FUERA_ROSTER and str(h.get("id")) in temporales:
+                if str(h.get("id")) in arrendados and not es_id_temporal(h.get("id")):
+                    origen = PROPIO          # dimensional arrendado (ya vencido o no): era tuyo
+                    h["origen"], h["arrendado"] = PROPIO, True
+                elif origen == FUERA_ROSTER and str(h.get("id")) in temporales:
                     origen = PRUEBA
                     h["origen"] = PRUEBA  # para que el retrato y el detalle lo muestren igual
                 origenes.append(origen)
@@ -253,7 +343,8 @@ def construir_composiciones(runs, heroes_temporales=()):
                 run_completa=completa,
                 heroes=heroes,
                 mascota=mascota,
-                golden=r.get("golden"),
+                golden=deducir_golden(heroes, r.get("golden")),
+                estadisticas=r.get("estadisticas") or {},
                 hero_ids=tuple(ids),
                 hero_nombres=tuple(nombres),
                 mascota_id=_clave(mascota.get("tid")) or _clave(mascota.get("name")),
@@ -313,8 +404,8 @@ def _conjunto_baneos(baneos):
     """Claves 'TIPO|NOMBRE_O_ID|ALCANCE|COPIA' de los baneos activos."""
     activos = set()
     for b in baneos:
-        if not b.get("activo", True):
-            continue
+        if not b.get("activo", True) or b.get("limite"):
+            continue   # los límites de build se revisan aparte (_limites / _excede_limite)
         tipo = _clave(b.get("tipo"))
         alcance = _clave(b.get("jefe")) or "TODOS"
         copia = _clave(b.get("copia")) or COPIA_TODAS
@@ -369,9 +460,98 @@ class Resultado:
     duracion: float = 0.0
 
 
+# ============================================================
+# LÍMITES DE BUILD ("no tengo esa colección a ★3", "mi Dracula tiene SI 20"...)
+# ============================================================
+# Un límite es un baneo con "limite": True:
+#   {"limite": True, "objeto": "HEROE" | "COLECCION", "nombre": "Dracula" | "*", "campo": ..., "max": n,
+#    "jefe": "TODOS" | posición | Boss ID, "activo": True}
+# Se descarta el equipo si algún héroe supera el máximo. max = -1 en una colección = "no la tengo".
+CAMPOS_HEROE = {"quality": N_("Ascensión"), "sig": N_("SI"), "engraving": N_("Grabado"), "muebles": N_("Muebles")}
+CAMPOS_COLECCION = {"estrellas": N_("Nivel de habilidad (★)"), "mythic": N_("Afijos míticos"),
+                    "level": N_("Nivel de colección")}
+
+
+def _valor_heroe(h, campo):
+    if campo == "muebles":
+        return int((h.get("furniture") or {}).get("pieces") or 0)
+    try:
+        return int(h.get(campo) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _limites(baneos):
+    salida = []
+    for b in baneos:
+        if b.get("limite") and b.get("activo", True):
+            try:
+                maximo = int(b.get("max"))
+            except (TypeError, ValueError):
+                continue
+            salida.append((_clave(b.get("objeto")), _clave(b.get("nombre")) or "*", b.get("campo"), maximo,
+                           _clave(b.get("jefe")) or "TODOS"))
+    return salida
+
+
+def _excede_limite(comp, posicion, limites):
+    alcances = {"TODOS", str(posicion), str(comp.boss_id)}
+    for objeto, nombre, campo, maximo, alcance in limites:
+        if alcance not in alcances:
+            continue
+        for h in comp.heroes:
+            if objeto == "HEROE":
+                if nombre not in ("*", _clave(h.get("name"))) and nombre != _clave(h.get("tid")):
+                    continue
+                if _valor_heroe(h, campo) > maximo:
+                    return True
+            else:   # COLECCION
+                col = h.get("collection") or {}
+                if not col or nombre not in ("*", _clave(col.get("name"))) and nombre != _clave(col.get("tid")):
+                    continue
+                try:
+                    valor = int(col.get(campo) or 0)
+                except (TypeError, ValueError):
+                    valor = 0
+                if valor > maximo:
+                    return True
+    return False
+
+
+def describir_limite(b):
+    """'Colección Timeline Watch: máximo ★2' · 'Colección X: no la tengo' · 'Dracula: SI máximo 20'."""
+    objeto = _clave(b.get("objeto"))
+    nombre = b.get("nombre") or "*"
+    quien = tr("Cualquier héroe") if nombre == "*" and objeto == "HEROE" else (
+        tr("Cualquier colección") if nombre == "*" else str(nombre).split(" - ")[0])
+    if objeto == "COLECCION" and nombre != "*":
+        quien = tr("Colección {0}", quien)
+    if int(b.get("max", 0)) < 0:
+        return tr("{0}: no la tengo", quien) if objeto == "COLECCION" else tr("{0}: no lo tengo", quien)
+    if objeto == "COLECCION":
+        return tr("{0}: {1} máximo {2}", quien, tr(CAMPOS_COLECCION.get(b.get("campo"), b.get("campo"))),
+                  b.get("max"))
+    return tr("{0}: {1} máximo {2}", quien, tr(CAMPOS_HEROE.get(b.get("campo"), b.get("campo"))), b.get("max"))
+
+
+def quitar_baneadas(comps, rotacion, baneos):
+    """
+    Las composiciones que no tocan ningún baneo ni límite (según su jefe y su posición en la rotación).
+    Sirve para mezclar fuentes con baneos distintos: p. ej. tus equipos + los de amigos con 'Baneos de amigos'.
+    """
+    activos, limites = _conjunto_baneos(baneos), _limites(baneos)
+    if not activos and not limites:
+        return list(comps)
+    posicion_de = {boss: i for i, boss in enumerate(rotacion, 1) if boss}
+    return [c for c in comps
+            if not _baneada(c, posicion_de.get(c.boss_id, 0), activos)
+            and not (limites and _excede_limite(c, posicion_de.get(c.boss_id, 0), limites))]
+
+
 def candidatos_por_jefe(comps, rotacion, opciones, baneos):
     """posicion (1..6) -> lista de composiciones únicas, ordenadas por tiempo."""
     activos = _conjunto_baneos(baneos)
+    limites = _limites(baneos)
     posicion_de = {boss: i for i, boss in enumerate(rotacion, 1)}
     mejores = {i: {} for i in range(1, 7)}
     usos = {i: {} for i in range(1, 7)}
@@ -388,6 +568,8 @@ def candidatos_por_jefe(comps, rotacion, opciones, baneos):
         if opciones.excluir_fuera_roster and FUERA_ROSTER in c.hero_origenes:
             continue
         if _baneada(c, pos, activos):
+            continue
+        if limites and _excede_limite(c, pos, limites):
             continue
         consideradas += 1
         firma = c.firma
@@ -409,16 +591,16 @@ def candidatos_por_jefe(comps, rotacion, opciones, baneos):
 def optimizar(comps, rotacion, opciones, baneos=(), cancelar=None):
     rotacion = [str(b).strip() for b in rotacion]
     if len(rotacion) != 6 or any(not b for b in rotacion):
-        return Resultado("Sin solución", "La rotación debe tener 6 jefes.")
+        return Resultado("Sin solución", tr("La rotación debe tener 6 jefes."))
     if len(set(rotacion)) != 6:
-        return Resultado("Sin solución", "Hay jefes repetidos en la rotación.")
+        return Resultado("Sin solución", tr("Hay jefes repetidos en la rotación."))
 
     candidatos, consideradas = candidatos_por_jefe(comps, rotacion, opciones, baneos)
     for pos in range(1, 7):
         if not candidatos[pos]:
             return Resultado(
                 "Sin solución",
-                f"No hay composiciones elegibles para el jefe {pos} (Boss {rotacion[pos - 1]}).",
+                tr("No hay composiciones elegibles para el jefe {0} (Boss {1}).", pos, rotacion[pos - 1]),
                 candidatos=candidatos, consideradas=consideradas,
             )
 
@@ -470,14 +652,14 @@ def optimizar(comps, rotacion, opciones, baneos=(), cancelar=None):
     duracion = time.monotonic() - inicio
 
     if estado["elegidas"] is None:
-        detalle = ("Límite de tiempo agotado" if estado["agotado"]
-                   else "Baneos o conflictos impiden formar seis equipos")
+        detalle = (tr("Límite de tiempo agotado") if estado["agotado"]
+                   else tr("Baneos o conflictos impiden formar seis equipos"))
         return Resultado("Sin solución", detalle, candidatos=candidatos,
                          consideradas=consideradas, duracion=duracion)
 
     return Resultado(
-        "Mejor encontrada (no certificada)" if estado["agotado"] else "Óptimo global",
-        "Tiempo agotado: resultado factible" if estado["agotado"] else "Búsqueda completa",
+        N_("Mejor encontrada (no certificada)") if estado["agotado"] else N_("Óptimo global"),
+        tr("Tiempo agotado: resultado factible") if estado["agotado"] else tr("Búsqueda completa"),
         total=estado["mejor"],
         elegidas=estado["elegidas"],
         candidatos=candidatos,

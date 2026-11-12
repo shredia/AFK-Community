@@ -17,9 +17,22 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from idiomas import tr
+from idiomas import tr, N_
 
 BASE = "https://esperianarchive.com"
+# El sitio cambió su acceso (código por correo, Turnstile): la conexión queda desactivada mientras se
+# trabaja en ella. Con True no sale ninguna petición; los datos se cargan importando los archivos .json.
+SITIO_EN_DESARROLLO = True
+# Páginas del sitio donde se descargan los archivos para importar (se abren en tu navegador)
+URL_RUNS = BASE + "/my-runs"          # afk-runs.json
+URL_INVENTARIO = BASE + "/inventory"  # afk-inventory.json
+URL_CUENTAS = BASE + "/game-accounts"  # elegir personaje y hacer Fetch
+URL_DESCARGAS = URL_RUNS
+PASOS_DESCARGA = N_("1. Inicia sesión en esperianarchive.com en tu navegador.\n"
+                    "2. En «Game accounts» elige tu personaje (servidor) y pulsa «Fetch … inventory and runs».\n"
+                    "3. En «My runs» descarga afk-runs.json, y en «Inventory» descarga afk-inventory.json.\n"
+                    "4. Vuelve aquí y pulsa «Elegir archivo e importar…» con cada uno.")
+MENSAJE_DESARROLLO = N_("La conexión con esperianarchive.com está en desarrollo. Mientras tanto, importa afk-runs.json y afk-inventory.json en Ajustes → Importar / exportar.")
 SERVICIO_KEYRING = "EsperianArchive-NC"
 ARCHIVO_CONFIG = "config_credenciales.json"
 AGENTE = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -69,6 +82,8 @@ class Sesion:
 
     # ---- bajo nivel
     def _pedir(self, metodo, ruta, cuerpo=None, x_page="/", timeout=TIMEOUT, binario=False):
+        if SITIO_EN_DESARROLLO:
+            raise ErrorSitio(tr(MENSAJE_DESARROLLO))
         url = ruta if ruta.startswith("http") else BASE + ruta
         cabeceras = {"User-Agent": AGENTE, "Accept": "application/json" if not binario else "*/*",
                      "X-Page": x_page, "Origin": BASE, "Referer": BASE + x_page}

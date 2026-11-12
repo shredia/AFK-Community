@@ -8,6 +8,7 @@ import threading
 from navegador.scraper import configurar_cuenta, obtener_game_accounts, guardar_game_accounts
 from navegador.sitio import SERVICIO_KEYRING
 import keyring
+from aplicacion import tema
 from idiomas import tr
 
 class VentanaCuenta:
@@ -21,7 +22,7 @@ class VentanaCuenta:
             / "config_credenciales.json"
         )
 
-        self.top = tk.Toplevel(parent)
+        self.top = tema.ventana(parent)
         self.top.title(tr("Acceso al sitio"))
         self.top.geometry("900x700")
         self.top.resizable(True, True)
@@ -558,7 +559,8 @@ class VentanaCuenta:
 
     def _login_correcto(self):
         messagebox.showinfo(tr("Éxito"), tr("¡Sesión iniciada correctamente! Tus credenciales quedaron guardadas."), parent=self.top)
-        self.top.destroy()
+        if not getattr(self.top, "incrustada", False):
+            self.top.destroy()
 
     def _login_fallido(self, mensaje):
         messagebox.showerror(tr("Error"), tr('Ocurrió un error al iniciar sesión:\n{0}', mensaje), parent=self.top)

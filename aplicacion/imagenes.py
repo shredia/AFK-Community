@@ -118,7 +118,17 @@ class CacheImagenes:
             return self._cache[clave]
         if Image is None:
             return self.obtener(h.get("imageUrl"), tam)
+        lienzo = self.retrato_pil(h, vis, golden, con_coleccion, con_equipo)
+        alto_final = round(lienzo.height * tam / lienzo.width)
+        foto = ImageTk.PhotoImage(lienzo.resize((tam, alto_final), Image.LANCZOS))
+        self._cache[clave] = foto
+        return foto
 
+    def retrato_pil(self, h, vis, golden=None, con_coleccion=True, con_equipo=False):
+        """El retrato a escala 100 px (imagen PIL), antes de reducirlo."""
+        col = h.get("collection") or {}
+        sp = vis.usa_sp(h, golden)
+        gear = sorted(h.get("gear") or [], key=lambda g: g.get("slot", 0))
         M = 10                       # margen para que el aro del SI sobresalga
         franja = 40 if con_coleccion else 0
         franja_equipo = 31 if con_equipo else 0
@@ -133,13 +143,17 @@ class CacheImagenes:
             dib.rectangle([M, M, M + 99, M + 99], fill=(120, 120, 120, 255))
         self._pegar(lienzo, self._abrir(vis.marco(h.get("quality"))), M, M, 100, 100)
 
-        # Arriba a la izquierda: facción dentro del círculo del marco, rodeada por el aro del SI
-        self._pegar(lienzo, self._abrir(vis.faccion(h.get("faction"))), M + 2, M + 2, 27, 27)
+        # Arriba a la izquierda: facción dentro del círculo del marco, rodeada por el aro del SI.
+        # Todos los aros (icon_signature_tag_*.png, 47×53) tienen el hueco centrado en (23, 22) y de ~20 px:
+        # el aro se escala a 48 px de ancho y se coloca con ese hueco justo sobre el centro de la facción.
+        cx, cy = M + 15.5, M + 15.5
+        self._pegar(lienzo, self._abrir(vis.faccion(h.get("faction"))), cx - 12, cy - 12, 24, 24)
         anillo = self._abrir(vis.marco_si_retrato(h.get("sig")))
         if anillo is not None and (h.get("sig") or 0) >= 10:
-            self._pegar(lienzo, anillo, M + 15.5 - 22, M + 15.5 - 29, 44)
+            escala = 48 / anillo.width
+            self._pegar(lienzo, anillo, cx - 23 * escala, cy - 22 * escala, 48)
         if h.get("sig") is not None:
-            self._texto(dib, (M + 15, M + 33), f"+{h.get('sig')}", 13, ancla="mt")
+            self._texto(dib, (cx, cy + 17), f"+{h.get('sig')}", 13, ancla="mt")
 
         # Insignia de muebles (3 / 9 / 9 al máximo con corona) bajo el SI
         insignia, corona = vis.insignia_muebles(h)
@@ -149,7 +163,11 @@ class CacheImagenes:
                 self._pegar(lienzo, self._abrir(corona), M + 3, M + 40, None, 12)
 
         # SP (héroes especiales) arriba a la derecha
-        if sp is not None:
+        if sp == "?":   # héroe especial, pero no se sabe si fue él quien usó el SP: en rojo
+            rojo = (255, 90, 90, 255)
+            dib.ellipse([M + 72, M + 2, M + 98, M + 23], fill=(70, 10, 10, 235), outline=rojo, width=2)
+            self._texto(dib, (M + 85, M + 12.5), "SP?", 9, relleno=rojo, ancla="mm")
+        elif sp is not None:
             color = (255, 205, 60, 255) if sp else (170, 170, 170, 255)
             dib.ellipse([M + 74, M + 3, M + 97, M + 22], fill=(40, 20, 0, 230) if sp else (40, 40, 40, 200),
                         outline=color, width=2)
@@ -162,7 +180,7 @@ class CacheImagenes:
         if etiqueta:
             texto, color = etiqueta
             dib.rectangle([M + 3, M + 60, M + 97, M + 78], fill=color)
-            self._texto(dib, (M + 50, M + 69), texto, 14, ancla="mm")
+            self._texto(dib, (M + 50, M + 69), texto, 14 if len(texto) <= 10 else 10, ancla="mm")
 
         # Estrellas delante (color según el grabado)
         n = vis.numero_estrellas(h.get("quality"))
@@ -198,9 +216,29 @@ class CacheImagenes:
             x0 = (lienzo.width - 4 * lado - 3) / 2
             for i, g in enumerate(gear[:4]):
                 self._pegar(lienzo, self._equipo_pil(g, vis, texto_grande=True), x0 + i * (lado + 1), y + 1, lado, lado)
+        return lienzo
 
-        alto_final = round(lienzo.height * tam / lienzo.width)
-        foto = ImageTk.PhotoImage(lienzo.resize((tam, alto_final), Image.LANCZOS))
+    def mascota(self, p, tam=56):
+        """Icono de la mascota con su nivel abajo ('Nv 18'), al alto de un retrato sin colección."""
+        nivel = p.get("level")
+        clave = ("mascota", p.get("imageUrl"), nivel, tam)
+        if clave in self._cache:
+            return self._cache[clave]
+        if Image is None:
+            return self.obtener(p.get("imageUrl"), tam)
+        M = 10
+        lienzo = Image.new("RGBA", (100 + 2 * M, 100 + 2 * M), (0, 0, 0, 0))
+        dib = ImageDraw.Draw(lienzo)
+        img = self._abrir(p.get("imageUrl"))
+        if img is not None:
+            img.thumbnail((100, 100), Image.LANCZOS)
+            self._pegar(lienzo, img, M + (100 - img.width) / 2, M + (100 - img.height) / 2)
+        else:
+            dib.rectangle([M, M, M + 99, M + 99], fill=(120, 120, 120, 255))
+        if nivel is not None:
+            dib.rounded_rectangle([M + 18, M + 76, M + 82, M + 99], radius=8, fill=(20, 20, 30, 215))
+            self._texto(dib, (M + 50, M + 88), f"Nv {nivel}", 17, relleno=(255, 220, 130, 255), ancla="mm")
+        foto = ImageTk.PhotoImage(lienzo.resize((tam, tam), Image.LANCZOS))
         self._cache[clave] = foto
         return foto
 

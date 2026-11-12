@@ -183,6 +183,8 @@ class Visuales:
         """Héroes especiales (hyper): True si usan su Special Power (golden slot) en esta ronda."""
         if not h.get("hyper"):
             return None
+        if golden == "?":   # varios especiales y no se sabe cuál lo usó
+            return "?"
         return golden is not None and str(golden) == str(h.get("slot"))
 
     # ---------------- colección: estrellas y valores ----------------

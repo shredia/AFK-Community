@@ -35,7 +35,7 @@ class Ventana_NC:
         self.sources = []          # runs propias (mine: true)
         self.runs_guardadas = []   # runs procesadas para el combobox
 
-        self.top = tk.Toplevel(parent)
+        self.top = tema.ventana(parent)
         self.top.title(tr("Runs de NC"))
         self.top.geometry("500x520")
         self.top.resizable(False, False)
@@ -198,6 +198,9 @@ class Ventana_NC:
                 sources = _solo_propias(sources)
                 if not sources:
                     raise RuntimeError(tr("La API no devolvió runs tuyas."))
+                # las runs importadas desde afk-runs.json que el sitio no trae se mantienen
+                from navegador.importar import conservar_importadas
+                sources = conservar_importadas(sources, self.sources)
                 prog.log(tr("Guardando lista (global y por cuenta/servidor)..."))
                 self._guardar_cache(sources)
             except Exception as error:
