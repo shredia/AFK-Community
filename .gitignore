@@ -18,7 +18,10 @@ desktop.ini
 *.tmp
 *.nuevo
 
-# Sesión del navegador (cookies), credenciales y datos de tus cuentas
+# Tus datos: cuentas, sesión, credenciales, preferencias, descargas, respaldos e importados (desde la 1.2.1)
+datos_usuario/
+
+# Ubicación antigua de esos datos (hasta la 1.2.0; la app los mueve sola a datos_usuario/)
 perfil_esperian/
 cuentas/
 config_credenciales.json

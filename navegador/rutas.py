@@ -1,6 +1,51 @@
-"""Ubicación de los archivos descargados dentro de cuentas/<cuenta>/<servidor>/."""
+"""
+Dónde vive cada cosa.
+
+  RAIZ    la carpeta del código (aplicacion/, navegador/, idiomas/, recursos/...): se reemplaza al actualizar.
+  DATOS   RAIZ/datos_usuario/: todo lo del usuario (cuentas/, assets/, preferencias.json...). No se sube a git
+          ni lo toca el actualizador.
+
+Y dentro de DATOS, los archivos descargados van en cuentas/<cuenta>/<servidor>/.
+"""
 import json
+import shutil
 from pathlib import Path
+
+RAIZ = Path(__file__).resolve().parent.parent
+DATOS = RAIZ / "datos_usuario"
+
+# Lo que hasta la 1.2.0 estaba suelto en RAIZ y ahora va en DATOS
+_DE_ANTES = ["cuentas", "assets", "datos", "guias", "respaldos", "perfil_esperian", "preferencias.json",
+             "config_credenciales.json", "game_accounts.json", "sources_guardados.json", "actualizacion.json",
+             "nombres_recursos.json", "api.txt"]
+
+
+def _mover(vieja, nueva):
+    """Mueve vieja -> nueva. Si las dos son carpetas, junta el contenido (lo que ya está en nueva se queda)."""
+    if not nueva.exists():
+        nueva.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(vieja), str(nueva))
+    elif vieja.is_dir() and nueva.is_dir():
+        for hijo in list(vieja.iterdir()):
+            _mover(hijo, nueva / hijo.name)
+        try:
+            vieja.rmdir()
+        except OSError:
+            pass
+
+
+def migrar_datos():
+    """Pasa los datos de la ubicación antigua (RAIZ) a DATOS. Se ejecuta solo al importar este módulo."""
+    for nombre in _DE_ANTES:
+        vieja = RAIZ / nombre
+        if vieja.exists():
+            try:
+                _mover(vieja, DATOS / nombre)
+            except OSError as error:   # p. ej. un archivo abierto: se reintenta la próxima vez
+                print(f"No se pudo mover {nombre} a {DATOS.name}/: {error}")
+
+
+migrar_datos()
 
 CARPETA_SIN_ASIGNAR = "_sin_asignar"
 
@@ -24,7 +69,7 @@ def carpeta_capturas(base_dir):
         nueva.parent.mkdir(parents=True, exist_ok=True)
         vieja.rename(nueva)
     # los recortes vienen con la aplicación en recursos/capturas: se copian los que falten
-    incluidos = Path(base_dir) / "recursos" / "capturas"
+    incluidos = RAIZ / "recursos" / "capturas"
     if str(nueva) not in _CAPTURAS_LISTAS and incluidos.is_dir():
         _CAPTURAS_LISTAS.add(str(nueva))
         nueva.mkdir(parents=True, exist_ok=True)

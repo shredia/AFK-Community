@@ -15,6 +15,8 @@ import re
 import unicodedata
 from pathlib import Path
 
+from navegador.rutas import RAIZ
+
 ARCHIVO_BASE = Path("datos") / "fractura_temporal.json"
 ARCHIVO_ESTADO = "fractura_temporal.json"
 COLUMNAS_ESPECIALES = ("Medallas", "Cofre 1", "Cofre 2", "Cofre 3")
@@ -166,7 +168,7 @@ def ruta_base(base_dir):
 
 def cargar_base(base_dir):
     """datos/fractura_temporal.json; en una instalación nueva se parte de recursos/fractura_temporal_base.json."""
-    for ruta in (ruta_base(base_dir), Path(base_dir) / "recursos" / "fractura_temporal_base.json"):
+    for ruta in (ruta_base(base_dir), RAIZ / "recursos" / "fractura_temporal_base.json"):
         try:
             return json.loads(ruta.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):

@@ -4,9 +4,9 @@ Actualización automática desde GitHub (shredia/AFK-Community).
   - Solo se actualiza con VERSIONES PUBLICADAS: etiquetas vX.Y.Z (tags) del repositorio.
   - Repositorio público: no hace falta nada. Si fuera privado, se usa un token de solo lectura guardado
     en el llavero de Windows (nunca en un archivo).
-  - Se reemplaza solo el código. Tus datos no se tocan: cuentas/, perfil_esperian/, assets/, guias/, datos/,
-    credenciales y preferencias.
-  - Antes de reemplazar, se guarda una copia del código actual en respaldos/<versión>/.
+  - Se reemplaza solo el código. Tus datos (datos_usuario/: cuentas, assets, credenciales, preferencias...)
+    no se tocan.
+  - Antes de reemplazar, se guarda una copia del código actual en datos_usuario/respaldos/<versión>/.
   - Si la carpeta es tu copia de desarrollo (tiene .git), no se sobrescribe: ahí se usa git pull.
 
 Publicar una versión (desde la carpeta de desarrollo):
@@ -35,7 +35,9 @@ ARCHIVO_ESTADO = "actualizacion.json"
 HORAS_ENTRE_REVISIONES = 12
 
 # Lo que nunca se sobrescribe ni se borra (datos del usuario)
-PROTEGIDOS = {"cuentas", "perfil_esperian", "assets", "guias", "datos", "respaldos", ".venv", "node_modules",
+PROTEGIDOS = {"datos_usuario",
+              # ubicación antigua de los datos (hasta la 1.2.0)
+              "cuentas", "perfil_esperian", "assets", "guias", "datos", "respaldos", ".venv", "node_modules",
               ".git", "config_credenciales.json", "game_accounts.json", "sources_guardados.json",
               "preferencias.json", ARCHIVO_ESTADO, "api.txt",
               # versión portable (.exe): runtime de Python y navegador empaquetados
@@ -177,7 +179,7 @@ def aplicar(info, progreso=print):
         raise ErrorActualizacion("El paquete descargado no parece la aplicación (falta main.py).")
 
     # respaldo del código actual
-    respaldo = RAIZ / "respaldos" / f"v{version_local()}_{time.strftime('%Y%m%d_%H%M%S')}"
+    respaldo = RAIZ / "datos_usuario" / "respaldos" / f"v{version_local()}_{time.strftime('%Y%m%d_%H%M%S')}"
     progreso(f"Respaldando el código actual en {respaldo.relative_to(RAIZ)}…")
     for rel in archivos:
         actual = RAIZ / rel

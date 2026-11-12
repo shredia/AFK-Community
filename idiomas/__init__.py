@@ -17,7 +17,9 @@ from pathlib import Path
 
 CARPETA = Path(__file__).resolve().parent
 IDIOMA_BASE = "es"
-_ARCHIVO_PREFERENCIAS = CARPETA.parent / "preferencias.json"
+from navegador.rutas import DATOS   # noqa: E402  (además mueve los datos de la ubicación antigua)
+
+_ARCHIVO_PREFERENCIAS = DATOS / "preferencias.json"
 
 _actual = IDIOMA_BASE
 _traducciones = {}

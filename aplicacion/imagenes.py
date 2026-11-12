@@ -1,5 +1,5 @@
 # aplicacion/imagenes.py
-"""Carga de imágenes descargadas (NC/assets) para Tkinter, con caché y marcador si falta."""
+"""Carga de imágenes descargadas (datos_usuario/assets) para Tkinter, con caché y marcador si falta."""
 from pathlib import Path
 import tkinter as tk
 
@@ -8,7 +8,9 @@ try:
 except ImportError:  # sin Pillow no se pueden mostrar .webp
     Image = None
 
-BASE_ASSETS = Path(__file__).resolve().parent.parent / "assets"
+from navegador.rutas import DATOS
+
+BASE_ASSETS = DATOS / "assets"
 _FUENTES = {}
 # Copias que no son tuyas: (texto de la franja, color RGBA)
 ETIQUETAS_ORIGEN = {

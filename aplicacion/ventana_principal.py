@@ -60,8 +60,9 @@ class VentanaPrincipal:
                 self.root.state("zoomed")
             except tk.TclError:
                 pass
-        # Ruta absoluta: funciona aunque se ejecute desde otra carpeta
-        self.perfil_path = Path(__file__).resolve().parent.parent / "perfil_esperian"
+        # Todo lo del usuario va en datos_usuario/ (ruta absoluta: funciona aunque se ejecute desde otra carpeta)
+        from navegador.rutas import DATOS
+        self.perfil_path = DATOS / "perfil_esperian"
         self.base_dir = self.perfil_path.parent
         from aplicacion.imagenes import CacheImagenes
         self.imagenes = CacheImagenes()

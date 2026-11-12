@@ -123,7 +123,7 @@ English and Spanish. You can switch in **Settings → General**.
 
 ## Privacy
 
-- Everything is stored inside the app's `app/` folder (`cuentas/`, `preferencias.json`, …).
+- Everything is stored in one folder, `app/datos_usuario/` (`cuentas/`, `preferencias.json`, …). To back up your data or move it to another PC, copy that folder.
 - If you used the site login, the password is stored in the Windows Credential Manager, not in a file.
 - The app only goes online to check GitHub for updates (and, once it's re-enabled, to connect to esperianarchive.com).
 - The portable build ships **without any personal data**.
@@ -139,6 +139,8 @@ python -m venv .venv
 .venv\Scripts\python -m navegador.actualizador publicar X.Y.Z   # tag and publish a version
 ```
 
-The `.exe` is only a launcher. Its `app/` folder holds Python and its libraries, the app code (`aplicacion/`, `navegador/`, `idiomas/`, `recursos/`) as `.py` files, so it can be updated from GitHub, and the user's data.
+The `.exe` is only a launcher. Its `app/` folder holds Python and its libraries, the app code (`aplicacion/`, `navegador/`, `idiomas/`, `recursos/`) as `.py` files, so it can be updated from GitHub, and the user's data in `datos_usuario/`.
+
+When you run from source, your data also lives in `datos_usuario/` (ignored by git). Older versions kept it loose in the root; the app moves it there automatically on start.
 
 To publish a version: `publicar X.Y.Z` (above), then build, then upload `dist/AFK-Community-setup.exe` and `dist/AFK-Community-portable.zip` to the GitHub Release of tag `vX.Y.Z`, keeping those exact file names (the download links point to them).

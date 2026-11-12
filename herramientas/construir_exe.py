@@ -39,7 +39,7 @@ ARCHIVOS = ["main.py", "lanzador.py", "version.py", "requirements.txt"]
 # Lo único que puede quedar arriba, junto al .exe
 PERMITIDOS_ARRIBA = {f"{NOMBRE}.exe", CONTENIDO, "README.md"}
 # Lo que la app crea al usarse (la prueba del .exe puede crear alguno): se borra antes de empaquetar
-DATOS_DE_USO = ["cuentas", "datos", "assets", "guias", "respaldos", "perfil_esperian", "preferencias.json",
+DATOS_DE_USO = ["datos_usuario", "cuentas", "datos", "assets", "guias", "respaldos", "perfil_esperian", "preferencias.json",
                 "config_credenciales.json", "game_accounts.json", "sources_guardados.json", "actualizacion.json",
                 "api.txt", "prueba_exe.txt"]
 
@@ -114,9 +114,11 @@ def limpiar_datos():
 
 
 def _marcas_personales():
-    """Textos que delatan datos tuyos: ids de cuenta, correos y nombres de personajes de cuentas/ (en este PC)."""
+    """Textos que delatan datos tuyos: ids de cuenta, correos y nombres de personajes de tus cuentas (en este PC)."""
     marcas = set()
-    cuentas = RAIZ / "cuentas"
+    cuentas = RAIZ / "datos_usuario" / "cuentas"
+    if not cuentas.is_dir():
+        sys.exit(f"⚠ No encuentro tus cuentas en {cuentas}: no se puede revisar que no se filtren datos tuyos.")
     for cuenta in cuentas.glob("*"):
         if cuenta.is_dir() and not cuenta.name.startswith("_") and len(cuenta.name) > 12:
             marcas.add(cuenta.name)
