@@ -37,9 +37,13 @@ HORAS_ENTRE_REVISIONES = 12
 # Lo que nunca se sobrescribe ni se borra (datos del usuario)
 PROTEGIDOS = {"cuentas", "perfil_esperian", "assets", "guias", "datos", "respaldos", ".venv", "node_modules",
               ".git", "config_credenciales.json", "game_accounts.json", "sources_guardados.json",
-              "preferencias.json", ARCHIVO_ESTADO, "api.txt"}
+              "preferencias.json", ARCHIVO_ESTADO, "api.txt",
+              # versión portable (.exe): runtime de Python y navegador empaquetados
+              "_internal", "navegadores", "AFK-Community.exe", "dist", "build", "herramientas"}
 
 RAIZ = Path(__file__).resolve().parent.parent
+# True dentro del .exe portable (PyInstaller): no hay pip ni main.py que ejecutar con Python
+CONGELADO = getattr(sys, "frozen", False)
 
 
 class ErrorActualizacion(Exception):
@@ -192,7 +196,9 @@ def aplicar(info, progreso=print):
         tmp.replace(destino)
 
     cambio_req = archivos.get(Path("requirements.txt"), req_antes) != req_antes
-    if cambio_req:
+    if cambio_req and CONGELADO:
+        progreso("⚠ Esta versión usa librerías nuevas: descarga también el .exe portable más reciente.")
+    elif cambio_req:
         progreso("Instalando librerías nuevas (requirements.txt)…")
         r = subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(RAIZ / "requirements.txt")],
                            capture_output=True, text=True)
@@ -204,8 +210,11 @@ def aplicar(info, progreso=print):
 
 
 def reiniciar():
-    """Vuelve a abrir la aplicación (main.py) en un proceso nuevo."""
-    subprocess.Popen([sys.executable, str(RAIZ / "main.py")], cwd=str(RAIZ))
+    """Vuelve a abrir la aplicación en un proceso nuevo (el .exe portable o main.py)."""
+    if CONGELADO:
+        subprocess.Popen([sys.executable], cwd=str(RAIZ))
+    else:
+        subprocess.Popen([sys.executable, str(RAIZ / "main.py")], cwd=str(RAIZ))
 
 
 # ---------------- publicar (copia de desarrollo) ----------------

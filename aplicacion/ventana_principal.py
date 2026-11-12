@@ -1,9 +1,5 @@
 # aplicacion/ventana_principal.py
-import importlib
-import sys
-import time
 import tkinter as tk
-import traceback
 from pathlib import Path
 from tkinter import ttk, messagebox
 
@@ -11,44 +7,9 @@ import aplicacion.ventana_cuenta
 import aplicacion.ventana_NC
 import aplicacion.ventana_optimizador
 import aplicacion.ventana_cuenta_actual
-import aplicacion.ventana_guias
 import aplicacion.ventana_fractura
 from aplicacion import tema
 from idiomas import tr, N_, idiomas_disponibles, idioma_actual, cambiar_idioma
-
-# Módulos que se recargan en caliente, en orden de dependencias (primero los de abajo).
-# Esta ventana principal NO se recarga: si la cambias, reinicia la app.
-MODULOS_RECARGABLES = [
-    "idiomas",
-    "navegador.utils",
-    "navegador.rutas",
-    "navegador.visuales",
-    "navegador.parser",
-    "navegador.scraper",
-    "navegador.optimizador",
-    "navegador.cuenta",
-    "navegador.reconocer",
-    "navegador.guias",
-    "navegador.guias_perfiles",
-    "navegador.guias_datos",
-    "aplicacion.tema",
-    "aplicacion.imagenes",
-    "aplicacion.ventana_progreso",
-    "aplicacion.ventana_cuenta",
-    "aplicacion.ventana_NC",
-    "aplicacion.ventana_optimizador",
-    "aplicacion.ventana_cuenta_actual",
-    "aplicacion.ventana_perfil_guia",
-    "aplicacion.ventana_guias",
-    "navegador.actualizador",
-    "aplicacion.ventana_actualizacion",
-    "navegador.cdn",
-    "navegador.fractura",
-    "aplicacion.tienda_fractura",
-    "aplicacion.vistas_fractura",
-    "aplicacion.ventana_fractura",
-]
-
 
 # Tarjetas del menú, en el orden de uso recomendado
 TARJETAS = [
@@ -61,7 +22,7 @@ TARJETAS = [
     ("abrir_optimizador", N_("Optimizador NC"),
      N_("El mejor equipo por jefe sin repetir héroes, con builds y alternativas."), "/game-ui/hero-screen/boss-77.webp"),
     ("abrir_guias", N_("Guías"),
-     N_("Planillas de la comunidad, con tus héroes marcados en cada sección."), "/game-ui/hero-screen/collection-10.webp"),
+     N_("En desarrollo: se está trabajando en esta sección para una versión futura."), "/game-ui/hero-screen/collection-10.webp"),
     ("abrir_fractura", N_("Fractura temporal"),
      N_("Planifica recompensas por piso, cofres de elección y tiendas de medallas."), "/game-ui/hero-screen/collection-1.webp"),
 ]
@@ -77,7 +38,6 @@ class VentanaPrincipal:
         # Ruta absoluta: funciona aunque se ejecute desde otra carpeta
         self.perfil_path = Path(__file__).resolve().parent.parent / "perfil_esperian"
         self.base_dir = self.perfil_path.parent
-        self._fechas_modulos = self._leer_fechas_modulos()
         from aplicacion.imagenes import CacheImagenes
         self.imagenes = CacheImagenes()
 
@@ -90,7 +50,7 @@ class VentanaPrincipal:
         cabecera = ttk.Frame(self.root)
         cabecera.pack(fill="x", padx=28, pady=(22, 6))
         ttk.Label(cabecera, text=tr("Esperian NC"), style="Titulo.TLabel").pack(anchor="w")
-        ttk.Label(cabecera, text=tr("Tus runs de Nightmare Corridor, tu cuenta y las guías de la comunidad, en un solo lugar."),
+        ttk.Label(cabecera, text=tr("Tus runs de Nightmare Corridor y tu cuenta, en un solo lugar."),
                   style="Muted.TLabel", font=tema.FUENTE_SUBTITULO).pack(anchor="w", pady=(2, 0))
 
         rejilla = ttk.Frame(self.root)
@@ -110,8 +70,7 @@ class VentanaPrincipal:
                        "2. Mi cuenta: haz fetch para traer tus datos.\n"
                        "3. Runs de NC: descarga lista y detalles.\n"
                        "4. Optimizador NC: arma tu mejor rotación.\n"
-                       "5. Guías: compara con las recomendaciones.\n"
-                       "6. Fractura temporal: planifica pisos y medallas.")).pack(anchor="w", pady=(6, 0))
+                       "5. Fractura temporal: planifica pisos y medallas.")).pack(anchor="w", pady=(6, 0))
 
         pie = ttk.Frame(self.root, style="Panel.TFrame", padding=(16, 8))
         pie.pack(fill="x", side="bottom")
@@ -138,9 +97,6 @@ class VentanaPrincipal:
         self.combo_idioma.pack(side="right", padx=(0, 10))
         self.combo_idioma.bind("<<ComboboxSelected>>", lambda e: self._cambiar_idioma())
         ttk.Label(pie, text="🌐", style="Panel.TLabel").pack(side="right", padx=(10, 4))
-        self.lbl_estado = ttk.Label(pie, text=tr("Los cambios de código se aplican al abrir una ventana."),
-                                    style="Panel.TLabel", foreground=tema.MUTED)
-        self.lbl_estado.pack(side="right", padx=14)
 
     def _tarjeta(self, padre, i, metodo, titulo, texto, imagen):
         marco = ttk.Frame(padre, style="Tarjeta.TFrame", padding=14)
@@ -178,8 +134,6 @@ class VentanaPrincipal:
             partes.append(tr("Cuenta: sin sincronizar"))
         detalles = sum(1 for _ in (self.base_dir / "cuentas").glob("*/*/detalles/*.json"))
         partes.append(tr("Runs de NC con detalle: {0}", detalles))
-        guias = sum(1 for _ in (self.base_dir / "guias").glob("*/guia.json"))
-        partes.append(tr("Guías descargadas: {0}", guias))
         self.lbl_resumen.configure(text="   ·   ".join(partes))
         if getattr(self, "_tarea_resumen", None):
             try:
@@ -238,86 +192,31 @@ class VentanaPrincipal:
         self.actualizar_resumen()
 
     # ============================================
-    # RECARGA DE CÓDIGO EN CALIENTE
-    # ============================================
-
-    @staticmethod
-    def _leer_fechas_modulos():
-        fechas = {}
-        for nombre in MODULOS_RECARGABLES:
-            modulo = sys.modules.get(nombre)
-            archivo = getattr(modulo, "__file__", None)
-            if archivo:
-                try:
-                    fechas[nombre] = Path(archivo).stat().st_mtime
-                except OSError:
-                    pass
-        return fechas
-
-    def recargar_codigo_si_cambio(self):
-        """
-        Si algún archivo .py cambió desde la última vez, recarga los módulos.
-        Si el código nuevo tiene un error, avisa y sigue usando la versión anterior.
-        """
-        actuales = self._leer_fechas_modulos()
-        cambiados = [n for n in MODULOS_RECARGABLES if actuales.get(n) != self._fechas_modulos.get(n)]
-        if not cambiados:
-            return True
-
-        try:
-            # Se recargan todos en orden para que los dependientes tomen las versiones nuevas
-            for nombre in MODULOS_RECARGABLES:
-                if nombre in sys.modules:
-                    importlib.reload(sys.modules[nombre])
-                else:
-                    importlib.import_module(nombre)
-        except Exception:
-            detalle = traceback.format_exc(limit=3)
-            print(detalle)
-            self.lbl_estado.config(text=tr("✗ El código modificado tiene un error (ver consola)."), foreground=tema.ERR)
-            messagebox.showerror(
-                tr("Error en el código"),
-                "No se pudo recargar el código modificado. Corrige el error y vuelve a intentarlo.\n\n" + detalle,
-                parent=self.root,
-            )
-            return False
-
-        self._fechas_modulos = self._leer_fechas_modulos()
-        archivos = ", ".join(n.split(".")[-1] + ".py" for n in cambiados)
-        self.lbl_estado.config(text=tr('↻ Código recargado {0}: {1}', time.strftime('%H:%M:%S'), archivos), foreground=tema.INFO)
-        print(f"Código recargado: {archivos}")
-        return True
-
-    # ============================================
     # ACCIONES
     # ============================================
 
     def abrir_configuracion(self):
-        if self.recargar_codigo_si_cambio():
-            aplicacion.ventana_cuenta.VentanaCuenta(self.root, self.perfil_path)
+        aplicacion.ventana_cuenta.VentanaCuenta(self.root, self.perfil_path)
 
     def accion_cargar_pagina(self):
-        if self.recargar_codigo_si_cambio():
-            aplicacion.ventana_NC.Ventana_NC(self.root, self.perfil_path)
+        aplicacion.ventana_NC.Ventana_NC(self.root, self.perfil_path)
 
     def abrir_optimizador(self, carpeta=None, enfoque=None):
-        if self.recargar_codigo_si_cambio():
-            aplicacion.ventana_optimizador.VentanaOptimizador(self.root, self.perfil_path,
-                                                              carpeta_inicial=carpeta, enfoque=enfoque)
+        aplicacion.ventana_optimizador.VentanaOptimizador(self.root, self.perfil_path,
+                                                          carpeta_inicial=carpeta, enfoque=enfoque)
 
     def abrir_guias(self):
-        if self.recargar_codigo_si_cambio():
-            aplicacion.ventana_guias.VentanaGuias(self.root, self.perfil_path,
-                                                  abrir_optimizador=self.abrir_optimizador)
+        # Desactivado por ahora: el sitio cambió su acceso. Se está trabajando para una versión futura.
+        messagebox.showinfo(tr("Guías"), tr("Las guías están en desarrollo.\n\n"
+                                           "Se está trabajando en esta sección y volverá en una versión futura."),
+                            parent=self.root)
 
     def abrir_fractura(self):
-        if self.recargar_codigo_si_cambio():
-            aplicacion.ventana_fractura.VentanaFractura(self.root, self.perfil_path)
+        aplicacion.ventana_fractura.VentanaFractura(self.root, self.perfil_path)
 
     def abrir_cuenta_actual(self):
-        if self.recargar_codigo_si_cambio():
-            aplicacion.ventana_cuenta_actual.VentanaCuentaActual(self.root, self.perfil_path,
-                                                                 abrir_optimizador=self.abrir_optimizador)
+        aplicacion.ventana_cuenta_actual.VentanaCuentaActual(self.root, self.perfil_path,
+                                                             abrir_optimizador=self.abrir_optimizador)
 
 
 def iniciar_aplicacion():

@@ -22,3 +22,16 @@ datos/
 
 # Copias de seguridad que hace el actualizador
 respaldos/
+
+# Versión portable (.exe): se genera con herramientas/construir_exe.py
+build/
+dist/
+*.spec
+prueba_exe.txt
+
+# Guías: desactivadas por ahora (en desarrollo para una versión futura). El código queda solo en local.
+aplicacion/ventana_guias.py
+aplicacion/ventana_perfil_guia.py
+navegador/guias.py
+navegador/guias_datos.py
+navegador/guias_perfiles.py

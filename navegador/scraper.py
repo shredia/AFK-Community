@@ -1,153 +1,68 @@
+"""
+Descargas desde esperianarchive.com por HTTP (sin navegador): runs de NC, detalles, imágenes, tablas del sitio,
+cuentas de juego y el "fetch" de un servidor. La sesión la maneja navegador/sitio.py.
+
+Las funciones siguen siendo async (las ventanas las llaman con asyncio.run en un hilo).
+"""
 import asyncio
 import json
 from pathlib import Path
 
-from playwright.async_api import async_playwright
 from .parser import unpack_sources
 from .rutas import cargar_mapa_personajes, ruta_detalle, todos_los_detalles
+from .sitio import BASE, abrir_sesion, sesion, modulos_del_sitio, recomendaciones_colecciones, ErrorSitio
 from .visuales import Visuales, extraer_tablas, ruta_tablas
 from idiomas import tr
 
-BASE = "https://esperianarchive.com"
-VIEWPORT = {"width": 1440, "height": 900}
-REQUEST_TIMEOUT = 90_000
-
-
-async def _open_browser(playwright, profile_path):
-    return await playwright.chromium.launch_persistent_context(
-        user_data_dir=str(Path(profile_path).resolve()),
-        headless=True,
-        viewport=VIEWPORT,
-    )
-
-
-FETCH_TIMEOUT_MS = 30_000
+REQUEST_TIMEOUT = 90
+FETCH_TIMEOUT = 30
 
 
 def _sin_progreso(_mensaje):
     pass
 
 
-async def _fetch_json(page, url, timeout_ms=FETCH_TIMEOUT_MS, x_page=None):
-    """Hace fetch dentro de la página (usa la sesión del perfil). Corta a los timeout_ms."""
-    return await page.evaluate(
-        """async ([url, timeoutMs, xPage]) => {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), timeoutMs);
-            try {
-                const response = await fetch(url, {
-                    credentials: 'same-origin',
-                    headers: xPage ? {'Accept': 'application/json', 'x-page': xPage}
-                                   : {'Accept': 'application/json'},
-                    signal: controller.signal
-                });
-                let body;
-                try {
-                    body = await response.json();
-                } catch (error) {
-                    body = {error: 'No JSON'};
-                }
-                return {status: response.status, body};
-            } catch (error) {
-                const timeout = error.name === 'AbortError';
-                return {status: 0, body: {error: timeout ? 'Tiempo de espera agotado' : String(error)}};
-            } finally {
-                clearTimeout(timer);
-            }
-        }""",
-        [url, timeout_ms, x_page],
-    )
+def _base(perfil_path):
+    """Carpeta de la app (antes se pasaba la ruta del perfil del navegador; se mantiene el parámetro)."""
+    return Path(perfil_path).parent
 
 
-async def _abrir_sesion_simulador(p, perfil_path, progreso):
-    """Abre el navegador, entra al simulador y verifica que la sesión siga iniciada."""
-    progreso(tr("Abriendo navegador (Chromium)..."))
+def _abrir(perfil_path, progreso):
     try:
-        browser = await _open_browser(p, perfil_path)
-    except Exception as error:
-        raise RuntimeError(
-            tr('No se pudo abrir el navegador. ¿Hay otra descarga en curso usando el mismo perfil? Detalle: {0}', error)
-        ) from error
+        return abrir_sesion(_base(perfil_path), progreso)
+    except ErrorSitio as error:
+        if error.status in (401, 403):
+            raise RuntimeError(tr("No se pudo iniciar sesión. Revisa tu correo y contraseña en 'Acceso al sitio'. "
+                                  "Detalle: {0}", error)) from error
+        raise RuntimeError(str(error)) from error
 
-    try:
-        page = browser.pages[0] if browser.pages else await browser.new_page()
-
-        progreso(tr("Conectando a esperianarchive.com..."))
-        await page.goto(BASE + '/nc-simulator', wait_until='domcontentloaded', timeout=REQUEST_TIMEOUT)
-        progreso(tr("Página cargada. Verificando sesión..."))
-
-        if "/login" in page.url:
-            raise RuntimeError(tr("La sesión no está iniciada. Usa 'Acceso al sitio' para iniciar sesión."))
-
-        me = await _fetch_json(page, '/api/auth/me')
-        if me['status'] in (401, 403):
-            raise RuntimeError(tr("La sesión expiró. Usa 'Acceso al sitio' para iniciar sesión de nuevo."))
-        if me['status'] == 0:
-            raise RuntimeError(tr('No hay conexión con el servidor: {0}', me['body'].get('error')))
-    except BaseException:
-        await browser.close()
-        raise
-
-    progreso(tr("Sesión verificada ✓"))
-    return browser, page
 
 async def configurar_cuenta(perfil_path, correo="", password=""):
-    browser = None
+    """Prueba el login con estas credenciales (las guarda la ventana 'Acceso al sitio')."""
+    s = sesion(_base(perfil_path))
+    try:
+        s.entrar(correo, password)
+    except ErrorSitio as error:
+        raise RuntimeError(str(error)) from error
+    return s.usuario
 
-    async with async_playwright() as p:
-        try:
-            browser = await _open_browser(p, perfil_path)
-            page = browser.pages[0] if browser.pages else await browser.new_page()
-            await page.goto(BASE + '/login', wait_until='domcontentloaded', timeout=REQUEST_TIMEOUT)
-
-            if correo and password:
-                print("Ingresando credenciales automáticamente...")
-                await page.fill('input[name="email"]', correo)
-                await page.fill('input[type="password"]', password)
-                await page.click('button.button:has-text("Sign in")')
-                await page.wait_for_timeout(2500)
-
-                error_locator = page.locator('div.notice.error')
-                if await error_locator.is_visible():
-                    texto_error = await error_locator.inner_text()
-                    raise Exception(f"Credenciales incorrectas: {texto_error}")
-
-                await page.wait_for_url(
-                    lambda url: "/login" not in url,
-                    timeout=20_000,
-                )
-                print("¡Inicio de sesión completado y sesión guardada en el perfil!")
-            else:
-                input("\nPresiona ENTER cuando hayas iniciado sesión manualmente... ")
-
-        finally:
-            if browser:
-                await browser.close()
 
 async def obtener_sources_iniciales(perfil_path, progreso=_sin_progreso):
     """Descarga la lista resumida de runs (poca información)."""
-    browser = None
-
-    async with async_playwright() as p:
-        try:
-            browser, page = await _abrir_sesion_simulador(p, perfil_path, progreso)
-            progreso(tr("Descargando lista de runs (/api/nc-sim/sources)..."))
-            response = await _fetch_json(page, '/api/nc-sim/sources', timeout_ms=REQUEST_TIMEOUT)
-            if response['status'] == 0 or response['status'] >= 400:
-                detalle = response['body'].get('error', '') if isinstance(response['body'], dict) else ''
-                raise RuntimeError(f"Error en la API: {response['status']} {detalle}".strip())
-            todas = unpack_sources(response['body'])
-            # La API entrega todas las runs juntas; se descartan de inmediato las ajenas.
-            sources = [run for run in todas if run.get("mine") is True]
-            progreso(tr('Lista recibida: {0} runs tuyas (se descartaron {1} ajenas).', len(sources), len(todas) - len(sources)))
-            return sources
-
-        except Exception as error:
-            raise RuntimeError(tr('No se pudieron obtener los sources iniciales: {0}', error)) from error
-        finally:
-            if browser:
-                progreso(tr("Cerrando navegador..."))
-                await browser.close()
+    try:
+        s = _abrir(perfil_path, progreso)
+        progreso(tr("Descargando lista de runs (/api/nc-sim/sources)..."))
+        response = s.json('/api/nc-sim/sources', x_page="/nc-simulator", timeout=REQUEST_TIMEOUT)
+        if response['status'] == 0 or response['status'] >= 400:
+            detalle = response['body'].get('error', '') if isinstance(response['body'], dict) else ''
+            raise RuntimeError(f"Error en la API: {response['status']} {detalle}".strip())
+        todas = unpack_sources(response['body'])
+        # La API entrega todas las runs juntas; se descartan de inmediato las ajenas.
+        sources = [run for run in todas if run.get("mine") is True]
+        progreso(tr('Lista recibida: {0} runs tuyas (se descartaron {1} ajenas).', len(sources), len(todas) - len(sources)))
+        return sources
+    except Exception as error:
+        raise RuntimeError(tr('No se pudieron obtener los sources iniciales: {0}', error)) from error
 
 
 def detalles_pendientes(base_dir, sources):
@@ -207,45 +122,36 @@ async def descargar_detalles_faltantes(
     if avance:
         avance(0, total)
 
-    browser = None
-    async with async_playwright() as p:
-        try:
-            browser, page = await _abrir_sesion_simulador(p, perfil_path, progreso)
+    s = _abrir(perfil_path, progreso)
+    for i, (run, destino) in enumerate(pendientes, 1):
+        if cancelar is not None and cancelar.is_set():
+            progreso(tr("Descarga cancelada por el usuario."))
+            break
 
-            for i, (run, destino) in enumerate(pendientes, 1):
-                if cancelar is not None and cancelar.is_set():
-                    progreso(tr("Descarga cancelada por el usuario."))
-                    break
+        rid = str(run["id"])
+        carpeta_rel = destino.parent.parent.relative_to(Path(base_dir) / "cuentas")
+        progreso(f"[{i}/{total}] {rid}  →  {carpeta_rel.as_posix()}")
+        respuesta = s.json(f'/api/nc-sim/source?kind=own&id={rid}', x_page="/nc-simulator", timeout=FETCH_TIMEOUT)
+        status = respuesta['status']
+        body = respuesta['body']
 
-                rid = str(run["id"])
-                carpeta_rel = destino.parent.parent.relative_to(Path(base_dir) / "cuentas")
-                progreso(f"[{i}/{total}] {rid}  →  {carpeta_rel.as_posix()}")
-                respuesta = await _fetch_json(page, f'/api/nc-sim/source?kind=own&id={rid}')
-                status = respuesta['status']
-                body = respuesta['body']
+        if status == 200 and isinstance(body, dict) and 'error' not in body:
+            _guardar_json_atomico(destino, body)
+            descargadas += 1
+        else:
+            detalle = body.get('error', '') if isinstance(body, dict) else ''
+            mensaje = f"HTTP {status} {detalle}".strip()
+            errores.append((rid, mensaje))
+            progreso(tr('   ⚠ Error en {0}: {1}', rid, mensaje))
+            if status in (401, 403):
+                progreso(tr("La sesión expiró; se detiene la descarga."))
+                break
 
-                if status == 200 and isinstance(body, dict) and 'error' not in body:
-                    _guardar_json_atomico(destino, body)
-                    descargadas += 1
-                else:
-                    detalle = body.get('error', '') if isinstance(body, dict) else ''
-                    mensaje = f"HTTP {status} {detalle}".strip()
-                    errores.append((rid, mensaje))
-                    progreso(tr('   ⚠ Error en {0}: {1}', rid, mensaje))
-                    if status in (401, 403):
-                        progreso(tr("La sesión expiró; se detiene la descarga."))
-                        break
+        if avance:
+            avance(i, total)
+        await asyncio.sleep(max(espera, 0))
 
-                if avance:
-                    avance(i, total)
-                await asyncio.sleep(max(espera, 0))
-
-            return descargadas, errores
-
-        finally:
-            if browser:
-                progreso(tr("Cerrando navegador..."))
-                await browser.close()
+    return descargadas, errores
 
 
 # ============================================
@@ -254,64 +160,23 @@ async def descargar_detalles_faltantes(
 
 EXTENSIONES_ASSET = (".webp", ".png", ".jpg", ".jpeg", ".gif", ".svg")
 
-# Vuelca los exports de un módulo JS del sitio (tablas estáticas) a datos JSON
-_JS_VOLCAR_MODULO = """async (url) => {
-  const m = await import(url);
-  const vistos = new WeakSet();
-  const limpiar = (v, d) => {
-    if (d > 8 || typeof v === 'function') return null;
-    if (v && typeof v === 'object') {
-      if (vistos.has(v)) return null;
-      vistos.add(v);
-      if (Array.isArray(v)) return v.map(x => limpiar(x, d + 1));
-      const o = {};
-      for (const k of Object.keys(v)) o[k] = limpiar(v[k], d + 1);
-      return o;
-    }
-    return v;
-  };
-  const out = {};
-  for (const k of Object.keys(m)) out[k] = limpiar(m[k], 0);
-  return out;
-}"""
 
-
-# Busca en el módulo principal del sitio la tabla de recomendaciones de colecciones
-# (filas con collectionTid + requirements). No depende del nombre minificado del export.
-_JS_RECOMENDACIONES = """async () => {
-  const url = performance.getEntriesByType('resource').map(e => e.name).find(n => /\\/index-[^/]+\\.js/.test(n));
-  if (!url) return [];
-  const m = await import(url);
-  for (const k of Object.keys(m)) {
-    const v = m[k];
-    if (Array.isArray(v) && v.length && v[0] && typeof v[0] === 'object'
-        && 'collectionTid' in v[0] && 'requirements' in v[0]) {
-      return JSON.parse(JSON.stringify(v));
-    }
-  }
-  return [];
-}"""
-
-
-async def actualizar_tablas_sitio(page, base_dir, progreso=_sin_progreso):
+def actualizar_tablas_sitio(s, base_dir, progreso=_sin_progreso):
     """
     Guarda en NC/assets/tablas_sitio.json las tablas estáticas del sitio (nombres e imágenes de
     jefes, equipo, afijos, colecciones, estrellas...). Son datos del juego, no runs de nadie.
+    Se leen del código público del sitio (GameVisuals-*.js) sin ejecutarlo.
     """
+    from .js_literales import leer_variables
     progreso(tr("Leyendo tablas del sitio (jefes, equipo, afijos, colecciones)..."))
-    url = await page.evaluate(
-        "() => performance.getEntriesByType('resource').map(e => e.name)"
-        ".find(n => /\\/GameVisuals-[^/]+\\.js/.test(n)) || null"
-    )
-    if not url:
-        raise RuntimeError(tr("No se encontró el módulo GameVisuals en la página."))
-    tablas = extraer_tablas(await page.evaluate(_JS_VOLCAR_MODULO, url))
+    index_js, visuales_js = modulos_del_sitio(s)
+    tablas = extraer_tablas(leer_variables(visuales_js))
     if not tablas.get("jefes") or not tablas.get("equipo"):
         raise RuntimeError(tr("El módulo GameVisuals cambió de formato."))
 
     # Guía de colecciones (planilla comunitaria "Collections Checklist" que usa el sitio)
     try:
-        tablas["recomendaciones_colecciones"] = await page.evaluate(_JS_RECOMENDACIONES) or []
+        tablas["recomendaciones_colecciones"] = recomendaciones_colecciones(index_js)
     except Exception as error:
         progreso(tr('   ⚠ No se pudo leer la guía de colecciones: {0}', (str(error).splitlines() or [''])[0]))
         tablas["recomendaciones_colecciones"] = []
@@ -423,68 +288,41 @@ async def descargar_assets(
         progreso(tr("No hay detalles descargados todavía: descarga primero los detalles."))
         return descargadas, errores
 
-    browser = None
-    async with async_playwright() as p:
-        try:
-            browser, page = await _abrir_sesion_simulador(p, perfil_path, progreso)
+    s = _abrir(perfil_path, progreso)
+    try:
+        actualizar_tablas_sitio(s, base_dir, progreso)
+    except Exception as error:
+        progreso(tr('   ⚠ No se pudieron actualizar las tablas del sitio: {0}', str(error).splitlines()[0]))
 
-            try:
-                await actualizar_tablas_sitio(page, base_dir, progreso)
-            except Exception as error:
-                progreso(tr('   ⚠ No se pudieron actualizar las tablas del sitio: {0}', str(error).splitlines()[0]))
+    progreso(tr("Buscando imágenes usadas en tus runs..."))
+    pendientes, total_refs = assets_pendientes(base_dir)
+    total = len(pendientes)
+    if not pendientes:
+        progreso(tr('Ya tienes las {0} imágenes.', total_refs))
+        return descargadas, errores
 
-            progreso(tr("Buscando imágenes usadas en tus runs..."))
-            pendientes, total_refs = assets_pendientes(base_dir)
-            total = len(pendientes)
-            if not pendientes:
-                progreso(tr('Ya tienes las {0} imágenes.', total_refs))
-                return descargadas, errores
+    progreso(tr('{0} imágenes usadas en tus runs; faltan {1}.', total_refs, total))
+    if avance:
+        avance(0, total)
 
-            progreso(tr('{0} imágenes usadas en tus runs; faltan {1}.', total_refs, total))
-            if avance:
-                avance(0, total)
+    for i, (url, destino) in enumerate(pendientes, 1):
+        if cancelar is not None and cancelar.is_set():
+            progreso(tr("Descarga cancelada por el usuario."))
+            break
+        progreso(f"[{i}/{total}] {url}")
+        error_final = s.descargar(url, destino)
+        if error_final:
+            error_final = s.descargar(url, destino)     # un reintento
+            if error_final:
+                errores.append((url, error_final))
+                progreso(f"   ⚠ {error_final}")
+        if not error_final:
+            descargadas += 1
+        if avance:
+            avance(i, total)
+        await asyncio.sleep(max(espera, 0))
 
-            for i, (url, destino) in enumerate(pendientes, 1):
-                if cancelar is not None and cancelar.is_set():
-                    progreso(tr("Descarga cancelada por el usuario."))
-                    break
-
-                progreso(f"[{i}/{total}] {url}")
-                error_final = None
-                for intento in (1, 2):
-                    try:
-                        # browser.request comparte las cookies de la sesión
-                        respuesta = await browser.request.get(BASE + url, timeout=FETCH_TIMEOUT_MS * intento)
-                        if respuesta.ok:
-                            destino.parent.mkdir(parents=True, exist_ok=True)
-                            temporal = destino.with_name(destino.name + ".tmp")
-                            temporal.write_bytes(await respuesta.body())
-                            temporal.replace(destino)
-                            descargadas += 1
-                            error_final = None
-                        else:
-                            error_final = f"HTTP {respuesta.status}"
-                        break
-                    except Exception as error:
-                        # Solo la primera línea: el resto del log de Playwright incluye la cookie de sesión
-                        error_final = (str(error).splitlines() or ["Error desconocido"])[0]
-                        if intento == 1:
-                            progreso(tr("   ↻ Tardó demasiado, reintentando..."))
-
-                if error_final:
-                    errores.append((url, error_final))
-                    progreso(f"   ⚠ {error_final}")
-
-                if avance:
-                    avance(i, total)
-                await asyncio.sleep(max(espera, 0))
-
-            return descargadas, errores
-
-        finally:
-            if browser:
-                progreso(tr("Cerrando navegador..."))
-                await browser.close()
+    return descargadas, errores
 
 
 # ============================================
@@ -496,10 +334,9 @@ ARCHIVO_ULTIMO_FETCH = "ultimo_fetch.json"
 INTERVALO_FETCH_S = 4          # el sitio consulta cada 4 s
 TIEMPO_MAX_FETCH_S = 15 * 60
 
-
-async def _cuentas_api(page):
+def _cuentas_api(s):
     # Sin la cabecera x-page el sitio responde 409 ("This page is out of date")
-    respuesta = await _fetch_json(page, "/api/game-accounts", x_page="/game-accounts")
+    respuesta = s.json("/api/game-accounts", x_page="/game-accounts")
     if respuesta["status"] != 200 or not isinstance(respuesta["body"], dict):
         raise RuntimeError(tr('No se pudo leer /api/game-accounts (HTTP {0}).', respuesta['status']))
     return respuesta["body"].get("accounts") or []
@@ -542,191 +379,75 @@ async def hacer_fetch_servidor(perfil_path, base_dir, account_id, server_id,
     consulta /api/game-accounts cada 4 s hasta que el estado deje de ser FETCHING.
     Guarda las cuentas actualizadas en cuentas/ y devuelve resumen_fetch(cuenta).
     """
-    browser = None
-    async with async_playwright() as p:
-        try:
-            browser, page = await _abrir_sesion_simulador(p, perfil_path, progreso)
+    s = _abrir(perfil_path, progreso)
 
-            cuentas = await _cuentas_api(page)
-            cuenta = _cuenta_con_servidor(cuentas, account_id, server_id)
-            if cuenta is None:
-                raise RuntimeError(tr('El sitio no tiene ninguna cuenta con el servidor {0}.', server_id))
-            account_id = str(cuenta["id"])
-            anterior = cuenta.get("fetchedAt")
-            progreso(tr('Último fetch registrado: {0}', anterior or 'nunca'))
+    cuentas = _cuentas_api(s)
+    cuenta = _cuenta_con_servidor(cuentas, account_id, server_id)
+    if cuenta is None:
+        raise RuntimeError(tr('El sitio no tiene ninguna cuenta con el servidor {0}.', server_id))
+    account_id = str(cuenta["id"])
+    anterior = cuenta.get("fetchedAt")
+    progreso(tr('Último fetch registrado: {0}', anterior or 'nunca'))
 
-            if str(cuenta.get("status")).upper() not in ESTADOS_EN_CURSO:
-                progreso(tr('Solicitando fetch del servidor {0}...', server_id))
-                respuesta = await page.evaluate(
-                    """async ([url, cuerpo]) => {
-                        const r = await fetch(url, {
-                            method: 'POST', credentials: 'same-origin',
-                            headers: {'Content-Type': 'application/json', 'Accept': 'application/json',
-                                      'x-page': '/game-accounts'},
-                            body: JSON.stringify(cuerpo)
-                        });
-                        let body = null;
-                        try { body = await r.json(); } catch (e) {}
-                        return {status: r.status, body};
-                    }""",
-                    [f"/api/game-accounts/{account_id}/fetch", {"serverId": int(server_id)}],
-                )
-                if respuesta["status"] not in (200, 202):
-                    detalle = respuesta["body"].get("error") if isinstance(respuesta["body"], dict) else ""
-                    raise RuntimeError(f"El sitio rechazó el fetch (HTTP {respuesta['status']}) {detalle or ''}".strip())
-                progreso(tr('El sitio aceptó el fetch: {0}.', (respuesta['body'] or {}).get('status', 'en curso')))
-            else:
-                progreso(tr("Ya había un fetch en curso; esperando a que termine..."))
+    if str(cuenta.get("status")).upper() not in ESTADOS_EN_CURSO:
+        progreso(tr('Solicitando fetch del servidor {0}...', server_id))
+        respuesta = s.json(f"/api/game-accounts/{account_id}/fetch", x_page="/game-accounts", metodo="POST",
+                           cuerpo={"serverId": int(server_id)})
+        if respuesta["status"] not in (200, 202):
+            detalle = respuesta["body"].get("error") if isinstance(respuesta["body"], dict) else ""
+            raise RuntimeError(f"El sitio rechazó el fetch (HTTP {respuesta['status']}) {detalle or ''}".strip())
+        progreso(tr('El sitio aceptó el fetch: {0}.', (respuesta['body'] or {}).get('status', 'en curso')))
+    else:
+        progreso(tr("Ya había un fetch en curso; esperando a que termine..."))
 
-            inicio = asyncio.get_running_loop().time()
-            while True:
-                if cancelar is not None and cancelar.is_set():
-                    progreso(tr("Dejé de esperar (el fetch sigue en el sitio y terminará solo)."))
-                    break
-                await asyncio.sleep(INTERVALO_FETCH_S)
-                transcurrido = int(asyncio.get_running_loop().time() - inicio)
-                cuentas = await _cuentas_api(page)
-                cuenta = _cuenta_con_servidor(cuentas, account_id, server_id) or cuenta
-                estado = str(cuenta.get("status") or "").upper()
-                cola = cuenta.get("queue")
-                extra = f" · en cola: {cola}" if cola not in (None, "", 0) else ""
-                progreso(tr('   [{0:02d}:{1:02d}] estado: {2}{3}', transcurrido // 60, transcurrido % 60, estado, extra))
-                if estado not in ESTADOS_EN_CURSO:
-                    break
-                if transcurrido > TIEMPO_MAX_FETCH_S:
-                    raise RuntimeError(tr("El fetch tarda demasiado (más de 15 min). Revisa el sitio más tarde."))
+    inicio = asyncio.get_running_loop().time()
+    while True:
+        if cancelar is not None and cancelar.is_set():
+            progreso(tr("Dejé de esperar (el fetch sigue en el sitio y terminará solo)."))
+            break
+        await asyncio.sleep(INTERVALO_FETCH_S)
+        transcurrido = int(asyncio.get_running_loop().time() - inicio)
+        cuentas = _cuentas_api(s)
+        cuenta = _cuenta_con_servidor(cuentas, account_id, server_id) or cuenta
+        estado = str(cuenta.get("status") or "").upper()
+        cola = cuenta.get("queue")
+        extra = f" · en cola: {cola}" if cola not in (None, "", 0) else ""
+        progreso(tr('   [{0:02d}:{1:02d}] estado: {2}{3}', transcurrido // 60, transcurrido % 60, estado, extra))
+        if estado not in ESTADOS_EN_CURSO:
+            break
+        if transcurrido > TIEMPO_MAX_FETCH_S:
+            raise RuntimeError(tr("El fetch tarda demasiado (más de 15 min). Revisa el sitio más tarde."))
 
-            # Guardar las cuentas actualizadas (sin el report completo, que es enorme)
-            livianas = [{k: v for k, v in c.items() if k != "report"} for c in cuentas]
-            guardar_game_accounts({"accounts": livianas}, base_dir)
+    # Guardar las cuentas actualizadas (sin el report completo, que es enorme)
+    livianas = [{k: v for k, v in c.items() if k != "report"} for c in cuentas]
+    guardar_game_accounts({"accounts": livianas}, base_dir)
 
-            resumen = resumen_fetch(cuenta)
-            resumen["anterior"] = anterior
-            resumen["account_id"] = account_id
-            if str(resumen.get("servidor")) == str(server_id) and resumen.get("fetchedAt") != anterior:
-                carpeta = Path(base_dir) / "cuentas" / account_id / str(server_id)
-                carpeta.mkdir(parents=True, exist_ok=True)
-                (carpeta / ARCHIVO_ULTIMO_FETCH).write_text(
-                    json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8")
-            return resumen
-        finally:
-            if browser:
-                progreso(tr("Cerrando navegador..."))
-                await browser.close()
+    resumen = resumen_fetch(cuenta)
+    resumen["anterior"] = anterior
+    resumen["account_id"] = account_id
+    if str(resumen.get("servidor")) == str(server_id) and resumen.get("fetchedAt") != anterior:
+        carpeta = Path(base_dir) / "cuentas" / account_id / str(server_id)
+        carpeta.mkdir(parents=True, exist_ok=True)
+        (carpeta / ARCHIVO_ULTIMO_FETCH).write_text(
+            json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8")
+    return resumen
 
 
-async def obtener_game_accounts(page):
+def obtener_game_accounts(s):
     """
-    Obtiene las cuentas de juego desde Esperian Archive.
-
-    Parámetros
-    ----------
-    page : playwright.async_api.Page
-        Página de Playwright con la sesión iniciada.
-
-    Retorna
-    -------
-    dict
-        Respuesta JSON de la API, incluyendo las cuentas
-        y sus respectivos personajes.
-
-    No guarda archivos.
+    Cuentas de juego del sitio: {"accounts": [...]} con sus personajes (roles). No guarda archivos.
+    s: la sesión (navegador.sitio.Sesion) o la ruta del perfil (se abre la sesión de la app).
     """
-
-    print("⏳ Obteniendo cuentas de juego...")
-
-    # ============================================
-    # 1. CONSULTAR API
-    # ============================================
-
-    resultado = await page.evaluate(
-        """
-        async () => {
-
-            const respuesta = await fetch(
-                '/api/game-accounts',
-                {
-                    method: 'GET',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Accept': 'application/json',
-                        'x-page': '/game-accounts'
-                    }
-                }
-            );
-
-            if (!respuesta.ok) {
-                throw new Error(
-                    `Error HTTP ${respuesta.status}: ${respuesta.statusText}`
-                );
-            }
-
-            return await respuesta.json();
-        }
-        """
-    )
-
-    # ============================================
-    # 2. VALIDAR RESPUESTA
-    # ============================================
-
+    if not hasattr(s, "json"):
+        s = _abrir(s, _sin_progreso)
+    respuesta = s.json("/api/game-accounts", x_page="/game-accounts")
+    if respuesta["status"] != 200:
+        raise RuntimeError(tr('No se pudo leer /api/game-accounts (HTTP {0}).', respuesta['status']))
+    resultado = respuesta["body"]
     if not isinstance(resultado, dict):
-        raise ValueError(
-            tr("La API devolvió una estructura inesperada.")
-        )
-
-    accounts = resultado.get("accounts", [])
-
-    if not isinstance(accounts, list):
-        raise ValueError(
-            tr("El campo 'accounts' no contiene una lista.")
-        )
-
-    # ============================================
-    # 3. MOSTRAR RESUMEN
-    # ============================================
-
-    print(f"✅ Cuentas obtenidas: {len(accounts)}")
-
-    total_personajes = 0
-
-    for cuenta in accounts:
-
-        account_id = cuenta.get("id", "N/A")
-        selected_server = cuenta.get("selected_server", "N/A")
-
-        roles = cuenta.get("roles", [])
-
-        print(
-            f"\n📁 Cuenta: {account_id}"
-            f"\n   Servidor seleccionado: {selected_server}"
-        )
-
-        for personaje in roles:
-
-            uid = personaje.get("uid", "N/A")
-            nombre = personaje.get("name", "Sin nombre")
-            servidor = personaje.get("svr_id", "N/A")
-            nivel = personaje.get("level", "N/A")
-
-            print(
-                f"   ├─ {nombre}"
-                f" | UID: {uid}"
-                f" | Servidor: {servidor}"
-                f" | Nivel: {nivel}"
-            )
-
-            total_personajes += 1
-
-    print(
-        f"\n✅ Total: {len(accounts)} cuentas, "
-        f"{total_personajes} personajes."
-    )
-
-    # ============================================
-    # 4. DEVOLVER DATOS
-    # ============================================
-
+        raise ValueError(tr("La API devolvió una estructura inesperada."))
+    if not isinstance(resultado.get("accounts", []), list):
+        raise ValueError(tr("El campo 'accounts' no contiene una lista."))
     return resultado
 
 

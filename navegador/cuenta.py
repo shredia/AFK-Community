@@ -15,11 +15,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from playwright.async_api import async_playwright
-
 from .rutas import cargar_mapa_personajes, carpeta_personaje
-from .scraper import (BASE, FETCH_TIMEOUT_MS, REQUEST_TIMEOUT, _abrir_sesion_simulador, _fetch_json,
-                      _sin_progreso, actualizar_tablas_sitio)
+from .scraper import REQUEST_TIMEOUT, _abrir, _sin_progreso, actualizar_tablas_sitio
 from .visuales import Visuales
 from idiomas import tr
 
@@ -141,7 +138,34 @@ def compactar_inventario(inv):
             for h in datos.get("baseHeroCopies") or []
         ],
         "cobertura": datos.get("coverage") or {},
+        # TODAS las colecciones de la cuenta (equipadas o no), tal como vienen del fetch
+        "colecciones_fetch": [_coleccion_de_fetch(c) for c in datos.get("collections") or []],
+        # héroe -> {colección equipada ahora, calidad ahora}
+        "heroes_fetch": {
+            str(h.get("id")): {"coleccion": str((h.get("mitama_unit") or {}).get("id") or "") or None,
+                               "calidad": h.get("quality"), "nombre": h.get("name"), "tid": h.get("tid")}
+            for h in (datos.get("heroes") or []) + (datos.get("temporaryHeroes") or [])
+        },
     }
+
+
+def _entero(v, defecto=0):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return defecto
+
+
+def _coleccion_de_fetch(c):
+    """Colección de /api/inventory en el mismo formato que las de NC (id, tid, level, mythic, affixes)."""
+    afijos = []
+    for ranura in sorted(c.get("slot_affixs") or [], key=lambda x: _entero(x.get("slot"))):
+        a = ranura.get("affix") or {}
+        if a.get("nature") is not None:
+            afijos.append({"nature": _entero(a.get("nature")), "quality": _entero(a.get("quality"))})
+    return {"id": str(c.get("id")), "tid": _entero(c.get("tid")), "level": _entero(c.get("level")),
+            "mythic": sum(1 for a in afijos if a["quality"] >= 5), "affixes": afijos,
+            "locked": bool(c.get("locked"))}
 
 
 def completar_imagenes(estado, vis):
@@ -187,78 +211,106 @@ async def sincronizar_cuenta(perfil_path, base_dir, progreso=_sin_progreso):
     Retorna (carpeta_servidor, resumen).
     """
     base_dir = Path(base_dir)
-    browser = None
-    async with async_playwright() as p:
-        try:
-            browser, page = await _abrir_sesion_simulador(p, perfil_path, progreso)
+    s = _abrir(perfil_path, progreso)
 
-            # Tablas del sitio al día: nombres e imágenes de equipo, SI, afijos, colecciones, mascotas...
-            try:
-                await actualizar_tablas_sitio(page, base_dir, progreso)
-            except Exception as error:
-                progreso(tr('   ⚠ No se pudieron actualizar las tablas del sitio: {0}', (str(error).splitlines() or [''])[0]))
+    # Tablas del sitio al día: nombres e imágenes de equipo, SI, afijos, colecciones, mascotas...
+    try:
+        actualizar_tablas_sitio(s, base_dir, progreso)
+    except Exception as error:
+        progreso(tr('   ⚠ No se pudieron actualizar las tablas del sitio: {0}', (str(error).splitlines() or [''])[0]))
 
-            progreso(tr("Descargando captura de la cuenta (/api/inventory, ~20 MB)..."))
-            r = await _fetch_json(page, "/api/inventory", timeout_ms=REQUEST_TIMEOUT * 2)
-            if r["status"] != 200 or not isinstance(r["body"], dict) or "inventory" not in r["body"]:
-                raise RuntimeError(tr('No se pudo leer el inventario (HTTP {0}).', r['status']))
-            compacto = compactar_inventario(r["body"]["inventory"])
-            uid = str((compacto.get("cuenta") or {}).get("id") or "")
-            progreso(tr('Captura del {0} · personaje {1} · nivel {2}', compacto['capturedAt'], uid, (compacto.get('cuenta') or {}).get('level')))
+    progreso(tr("Descargando captura de la cuenta (/api/inventory, ~20 MB)..."))
+    r = s.json("/api/inventory", x_page="/inventory", timeout=REQUEST_TIMEOUT * 2)
+    if r["status"] != 200 or not isinstance(r["body"], dict) or "inventory" not in r["body"]:
+        raise RuntimeError(tr('No se pudo leer el inventario (HTTP {0}).', r['status']))
+    compacto = compactar_inventario(r["body"]["inventory"])
+    uid = str((compacto.get("cuenta") or {}).get("id") or "")
+    progreso(tr('Captura del {0} · personaje {1} · nivel {2}', compacto['capturedAt'], uid, (compacto.get('cuenta') or {}).get('level')))
 
-            mapa = cargar_mapa_personajes(base_dir)
-            carpeta = carpeta_personaje(base_dir, mapa, uid)
-            carpeta.mkdir(parents=True, exist_ok=True)
-            progreso(tr('Servidor de la captura: {0}', carpeta.name))
+    mapa = cargar_mapa_personajes(base_dir)
+    carpeta = carpeta_personaje(base_dir, mapa, uid)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    progreso(tr('Servidor de la captura: {0}', carpeta.name))
 
-            # Roster y colecciones procesados (mismo formato que las rondas de NC)
-            roster, colecciones, mascotas_roster = [], [], []
-            run = _run_mas_reciente(carpeta)
-            if run:
-                progreso(tr("Leyendo tu roster y colecciones actuales..."))
-                rd = await _fetch_json(page, f"/api/nc-sim/source?kind=own&id={run['id']}", timeout_ms=REQUEST_TIMEOUT)
-                if rd["status"] == 200 and isinstance(rd["body"], dict):
-                    roster = rd["body"].get("roster") or []
-                    colecciones = rd["body"].get("collections") or []
-                    mascotas_roster = (rd["body"].get("pets") or {}).get("roster") or []
-            else:
-                progreso(tr("   ⚠ Sin runs de NC en este servidor: no se puede leer el roster procesado."))
+    # Roster y colecciones procesados (mismo formato que las rondas de NC)
+    roster, colecciones, mascotas_roster = [], [], []
+    run = _run_mas_reciente(carpeta)
+    if run:
+        progreso(tr("Leyendo tu roster y colecciones actuales..."))
+        rd = s.json(f"/api/nc-sim/source?kind=own&id={run['id']}", x_page="/nc-simulator", timeout=REQUEST_TIMEOUT)
+        if rd["status"] == 200 and isinstance(rd["body"], dict):
+            roster = rd["body"].get("roster") or []
+            colecciones = rd["body"].get("collections") or []
+            mascotas_roster = (rd["body"].get("pets") or {}).get("roster") or []
+    else:
+        progreso(tr("   ⚠ Sin runs de NC en este servidor: no se puede leer el roster procesado."))
 
-            # Héroe -> colección equipada (por id de colección)
-            equipada_en = {}
-            for h in roster:
-                col = h.get("collection") or {}
-                if col.get("id") is not None:
-                    equipada_en[str(col["id"])] = h.get("name")
-            for c in colecciones:
-                c["equipada_en"] = equipada_en.get(str(c.get("id")))
+    vis = Visuales(base_dir)
+    fecha_run = (run or {}).get("playedAt")
+    # Colecciones: todas las de la cuenta (fetch). Si el sitio no las trae, las de la run.
+    tags = {str(c.get("tid")): c.get("tag") for c in colecciones if c.get("tag") is not None}
+    anteriores = cargar_cuenta_actual(carpeta) or {}
+    tags.update({str(c.get("tid")): c.get("tag") for c in anteriores.get("colecciones") or []
+                 if c.get("tag") is not None and str(c.get("tid")) not in tags})
+    if compacto.get("colecciones_fetch"):
+        colecciones = []
+        for c in compacto["colecciones_fetch"]:
+            colecciones.append({**c, "name": vis.nombre_coleccion(c["tid"]), "tag": tags.get(str(c["tid"]))})
+        fuente_colecciones = "fetch"
+    else:
+        fuente_colecciones = "run"
+    por_id = {str(c.get("id")): c for c in colecciones}
 
-            temporales = set(compacto["heroes_temporales"])
-            for h in roster:
-                h["temporal"] = str(h.get("id")) in temporales
+    # Héroes: colección equipada y calidad ACTUALES (fetch); SI, grabado, muebles y equipo de la última run
+    heroes_fetch = compacto.get("heroes_fetch") or {}
+    for h in roster:
+        actual = heroes_fetch.get(str(h.get("id")))
+        if actual:
+            if actual.get("calidad") is not None:
+                h["quality"] = actual["calidad"]
+            h["collection"] = dict(por_id[actual["coleccion"]]) if actual.get("coleccion") in por_id else None
+        h["datos_run"] = fecha_run   # SI, grabado, muebles y equipo vienen de esta run
 
-            estado = {
-                **compacto,
-                "sincronizado": datetime.now(timezone.utc).isoformat(),
-                "servidor": carpeta.name,
-                "roster": roster,
-                "colecciones": colecciones,
-                "mascotas_roster": mascotas_roster,
-            }
-            completar_imagenes(estado, Visuales(base_dir))
-            ruta_cuenta_actual(carpeta).write_text(json.dumps(estado, ensure_ascii=False), encoding="utf-8")
-            progreso(tr('Guardado: {0} objetos, {1} monedas, {2} héroes, {3} colecciones, {4} piezas de equipo de reserva.', len(estado['objetos']), len(estado['monedas']), len(roster), len(colecciones), len(estado['equipo_reserva'])))
+    # Colección -> héroe que la lleva (según el fetch, o según la run si no hay fetch)
+    equipada_en = {}
+    for hid, actual in heroes_fetch.items():
+        if actual.get("coleccion"):
+            equipada_en[actual["coleccion"]] = actual.get("nombre")
+    if not heroes_fetch:
+        for h in roster:
+            col = h.get("collection") or {}
+            if col.get("id") is not None:
+                equipada_en[str(col["id"])] = h.get("name")
+    for c in colecciones:
+        c["equipada_en"] = equipada_en.get(str(c.get("id")))
 
-            # Íconos del inventario (requieren sesión)
-            await _descargar_iconos(browser, base_dir, estado, progreso, Visuales(base_dir))
-            return carpeta, estado
-        finally:
-            if browser:
-                progreso(tr("Cerrando navegador..."))
-                await browser.close()
+    temporales = set(compacto["heroes_temporales"])
+    for h in roster:
+        h["temporal"] = str(h.get("id")) in temporales
+
+    estado = {
+        **compacto,
+        "sincronizado": datetime.now(timezone.utc).isoformat(),
+        "servidor": carpeta.name,
+        "roster": roster,
+        "colecciones": colecciones,
+        "mascotas_roster": mascotas_roster,
+        "fuente_colecciones": fuente_colecciones,
+        "fecha_run_roster": fecha_run,
+    }
+    estado.pop("colecciones_fetch", None)   # ya están en "colecciones"
+    completar_imagenes(estado, vis)
+    ruta_cuenta_actual(carpeta).write_text(json.dumps(estado, ensure_ascii=False), encoding="utf-8")
+    progreso(tr('Guardado: {0} objetos, {1} monedas, {2} héroes, {3} colecciones, {4} piezas de equipo de reserva.', len(estado['objetos']), len(estado['monedas']), len(roster), len(colecciones), len(estado['equipo_reserva'])))
+    libres = sum(1 for c in colecciones if not c.get("equipada_en"))
+    progreso(tr('Colecciones de la cuenta: {0} ({1} libres, {2} equipadas).', len(colecciones), libres, len(colecciones) - libres))
+
+    # Íconos del inventario (requieren sesión)
+    await _descargar_iconos(s, base_dir, estado, progreso, Visuales(base_dir))
+    return carpeta, estado
 
 
-async def _descargar_iconos(browser, base_dir, estado, progreso, vis=None):
+async def _descargar_iconos(s, base_dir, estado, progreso, vis=None):
     urls = set()
     for lista in ("monedas", "objetos", "equipo_reserva", "mascotas", "artefactos"):
         urls.update(o.get("imageUrl") for o in estado.get(lista) or [])
@@ -274,13 +326,9 @@ async def _descargar_iconos(browser, base_dir, estado, progreso, vis=None):
     progreso(tr('Descargando {0} íconos nuevos...', len(pendientes)))
     for i, url in enumerate(pendientes, 1):
         destino = carpeta.joinpath(*url.lstrip("/").split("/"))
-        try:
-            resp = await browser.request.get(BASE + url, timeout=FETCH_TIMEOUT_MS)
-            if resp.ok:
-                destino.parent.mkdir(parents=True, exist_ok=True)
-                destino.write_bytes(await resp.body())
-        except Exception as error:
-            progreso(f"   ⚠ {url}: {(str(error).splitlines() or ['error'])[0]}")
+        error = s.descargar(url, destino)
+        if error:
+            progreso(f"   ⚠ {url}: {error}")
         if i % 25 == 0:
             progreso(tr('   {0}/{1} íconos', i, len(pendientes)))
         await asyncio.sleep(0.03)

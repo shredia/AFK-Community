@@ -5,14 +5,10 @@ import json
 from pathlib import Path
 import asyncio
 import threading
-from navegador.scraper import configurar_cuenta
-from navegador.scraper import obtener_game_accounts
-from playwright.async_api import async_playwright
-from navegador.scraper import guardar_game_accounts
+from navegador.scraper import configurar_cuenta, obtener_game_accounts, guardar_game_accounts
+from navegador.sitio import SERVICIO_KEYRING
 import keyring
 from idiomas import tr
-
-SERVICIO_KEYRING = "EsperianArchive-NC"
 
 class VentanaCuenta:
     def __init__(self, parent, perfil_path):
@@ -280,30 +276,10 @@ class VentanaCuenta:
 
 
     def ejecutar_descarga_cuentas(self):
-        async def _proceso_async():
-            async with async_playwright() as p:
-                browser = await p.chromium.launch_persistent_context(
-                    user_data_dir=str(self.perfil_path.resolve()),
-                    headless=True
-                )
-                try:
-                    page = (
-                        browser.pages[0]
-                        if browser.pages
-                        else await browser.new_page()
-                    )
-                    await page.goto(
-                        "https://esperianarchive.com/",
-                        wait_until="domcontentloaded"
-                    )
-                    return await obtener_game_accounts(page)
-                finally:
-                    await browser.close()
-
         def tarea_en_hilo():
             try:
                 print("⏳ Iniciando actualización de cuentas...")
-                datos = asyncio.run(_proceso_async())
+                datos = obtener_game_accounts(self.perfil_path)
                 if not datos:
                     raise RuntimeError(tr("No se obtuvieron datos de la API."))
 
@@ -563,7 +539,7 @@ class VentanaCuenta:
             return
 
         self.btn_guardar.config(state="disabled")
-        messagebox.showinfo(tr("Procesando"), tr("Abriendo navegador para iniciar sesión automáticamente..."), parent=self.top)
+        messagebox.showinfo(tr("Procesando"), tr("Iniciando sesión en esperianarchive.com..."), parent=self.top)
 
         def tarea_en_hilo():
             try:
@@ -581,7 +557,7 @@ class VentanaCuenta:
         threading.Thread(target=tarea_en_hilo, daemon=True).start()
 
     def _login_correcto(self):
-        messagebox.showinfo(tr("Éxito"), tr("¡Sesión iniciada y guardada correctamente en el perfil!"), parent=self.top)
+        messagebox.showinfo(tr("Éxito"), tr("¡Sesión iniciada correctamente! Tus credenciales quedaron guardadas."), parent=self.top)
         self.top.destroy()
 
     def _login_fallido(self, mensaje):

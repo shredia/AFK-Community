@@ -152,10 +152,15 @@ class VentanaCuentaActual:
             ("calidad", N_("Calidad"), 110, "center"), ("si", N_("SI"), 45, "center"), ("grabado", N_("Grabado"), 72, "center"),
             ("muebles", N_("Muebles"), 72, "center"), ("coleccion", N_("Colección"), 170, "w"),
             ("equipo", N_("Equipo"), 190, "w"), ("guia", N_("Guía"), 50, "center"), ("nc", N_("Usos en NC"), 80, "center")),
-                        texto_ayuda=N_("Guía: ✓ su colección cumple una recomendación · ✗ no · vacío: sin recomendación"))
+                        texto_ayuda=N_("Guía: ✓ lleva una colección que cumple la recomendación · ◐ tienes una copia que "
+                                       "cumple, pero sin poner (libre o en otro héroe) · ✗ no tienes ninguna que cumpla"))
         self._crear_tab("colecciones", N_("  Colecciones  "), (
             ("nivel", N_("Nivel"), 50, "center"), ("estrellas", N_("★"), 50, "center"), ("miticos", N_("Míticos"), 60, "center"),
-            ("equipada", N_("Equipada en"), 190, "w"), ("nc", N_("Usos en NC"), 80, "center")))
+            ("equipada", N_("Equipada en"), 170, "w"), ("ideal", N_("Ideal para (guía)"), 230, "w"),
+            ("nc", N_("Usos en NC"), 80, "center")),
+                        texto_ayuda=N_("Todas las colecciones de tu cuenta (del último fetch), puestas o libres. "
+                                       "«Ideal para»: tus héroes a los que la guía del sitio les recomienda esta "
+                                       "colección y esta copia la cumple."))
         self._crear_tab("equipo", N_("  Equipo de reserva  "), (
             ("categoria", N_("Tipo"), 150, "w"), ("tier", N_("Tier"), 50, "center"), ("estrellas", N_("★"), 50, "center"),
             ("faccion", N_("Facción"), 120, "w"), ("cantidad", N_("Cantidad"), 70, "center")))
@@ -314,7 +319,12 @@ class VentanaCuentaActual:
             recs = self.vis.recomendaciones_heroe(h.get("tid"))
             guia = ""
             if recs:
-                guia = "✓" if col and any(self.vis.evaluar_recomendacion(col, f)[0] for f in recs) else "✗"
+                if col and any(self.vis.evaluar_recomendacion(col, f)[0] for f in recs):
+                    guia = "✓"
+                elif any((self.vis.mejor_copia(e.get("colecciones"), f) or (None, False))[1] for f in recs):
+                    guia = "◐"
+                else:
+                    guia = "✗"
             filas["heroes"].append((f"{h.get('name')} {col.get('name', '')}", h.get("imageUrl"), nombre, (
                 self.vis.nombre_calidad(h.get("calidad_max") or h.get("quality"))
                 + (f" (+{len(h['copias']) - (1 if h.get('solo_copias') else 0)})"
@@ -323,14 +333,24 @@ class VentanaCuentaActual:
                 h.get("engraving", 0), f"{mueble.get('pieces', 0)}/9", col.get("name", "—"), equipo, guia,
                 uso["equipos"] or ""), ("heroe", h)))
 
+        # héroes desarrollados con recomendaciones de la guía (para "Ideal para")
+        recs_heroes = []
+        for h in e.get("roster") or []:
+            recs = self.vis.recomendaciones_heroe(h.get("tid"))
+            if recs:
+                recs_heroes.append((h.get("name"), recs))
         for c in e.get("colecciones") or []:
             uso = uso_en_nc(self.comps, coleccion_id=c.get("id")) if self.comps else {"equipos": 0}
+            ideal = [nombre for nombre, recs in recs_heroes
+                     if any(str(f.get("collectionTid")) == str(c.get("tid")) and self.vis.evaluar_recomendacion(c, f)[0]
+                            for f in recs)]
+            texto_ideal = ", ".join(ideal[:3]) + (f" +{len(ideal) - 3}" if len(ideal) > 3 else "")
             afijos = c.get("affixes") or []
             filas["colecciones"].append((f"{c.get('name')} {c.get('equipada_en') or ''}",
                                          self.vis.imagen_coleccion(c.get("tid")), c.get("name", "?"), (
                 c.get("level", "—"), "★" * (self.vis.estrellas_coleccion(c) or 0) or "—",
-                sum(1 for a in afijos if int(a.get("quality") or 0) >= 5), c.get("equipada_en") or "",
-                uso["equipos"] or ""), ("coleccion", c)))
+                sum(1 for a in afijos if int(a.get("quality") or 0) >= 5), c.get("equipada_en") or tr("— libre —"),
+                texto_ideal, uso["equipos"] or ""), ("coleccion", c)))
 
         facciones = {str(k): v.get("name") for k, v in (self.vis.t.get("facciones_equipo") or {}).items()}
         for g in e.get("equipo_reserva") or []:
