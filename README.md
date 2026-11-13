@@ -44,7 +44,7 @@ The app is installed in `%LOCALAPPDATA%\Programs\AFK-Community`, and your data i
    ```
 3. Run `~/AFK-Community/AFK-Community` (or double-click it in your file manager). Keep the `app` folder next to it.
 
-It works on Ubuntu 22.04 or newer, Debian 12+, Fedora, Arch, Mint and similar; Python doesn't need to be installed. Everything works as on Windows.
+It works on practically any desktop distribution from 2019 onwards (glibc 2.28+): Ubuntu 20.04+, Debian 10+, Mint 20+, Fedora 29+, RHEL/Rocky/Alma 8+, openSUSE Leap 15.3+, Arch, Manjaro… Python doesn't need to be installed. Everything works as on Windows.
 
 The app checks GitHub for new versions and offers to update itself.
 
@@ -223,7 +223,7 @@ When you run from source, your data also lives in `datos_usuario/` (ignored by g
 
 To publish a version: `publicar X.Y.Z` (above), then build, then upload `dist/AFK-Community-setup.exe` and `dist/AFK-Community-portable.zip` to the GitHub Release of tag `vX.Y.Z`, keeping those exact file names (the download links point to them).
 
-**Linux build.** PyInstaller can't build for another OS, so the Linux package is built on Linux. When you publish the GitHub Release, the *Linux* workflow (`.github/workflows/linux.yml`) builds it on Ubuntu 22.04 and uploads `AFK-Community-linux.tar.gz` to that Release by itself. It builds on an old Ubuntu on purpose: the executable only runs on distributions with the same or a newer glibc. You can also run the workflow by hand from the *Actions* tab; then the file is left as a downloadable artifact.
+**Linux build.** PyInstaller can't build for another OS, so the Linux package is built on Linux. When you publish the GitHub Release, the *Linux* workflow (`.github/workflows/linux.yml`) builds it inside AlmaLinux 8 and uploads `AFK-Community-linux.tar.gz` to that Release by itself. It builds on an old system on purpose: the executable only runs on distributions with the same or a newer glibc (2.28 here). Python 3.14 is compiled there against the system Tk, so fonts are antialiased and emojis show, and `--glibc-max 2.28` makes the build fail if anything needs a newer glibc. `libstdc++` and `libgcc_s` are not bundled: every distribution has them. You can also run the workflow by hand from the *Actions* tab; then the file is left as a downloadable artifact.
 
 To build it locally (for testing), on Linux or WSL:
 

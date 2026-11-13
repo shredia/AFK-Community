@@ -11,7 +11,9 @@ genera en su sistema (el de Linux, en Linux, en WSL o en GitHub Actions: .github
   Linux:
     dist/AFK-Community/                  la carpeta portable
     dist/AFK-Community-linux.tar.gz      esa carpeta comprimida (tar conserva el permiso de ejecución)
-        python3 herramientas/construir_exe.py  [--sin-zip]
+        python3 herramientas/construir_exe.py  [--sin-zip] [--glibc-max 2.28]
+    La glibc mínima es la del sistema donde se compila: el Release se compila en AlmaLinux 8 (glibc 2.28) para que
+    corra en casi cualquier distro de 2019 en adelante. --glibc-max hace fallar la compilación si se pasa.
 
   Opciones para revisar que no se filtren datos tuyos (busca en la carpeta portable tus correos, ids de cuenta
   y nombres de personajes, sacados de tus cuentas):
@@ -106,6 +108,42 @@ def pyinstaller():
     print("PyInstaller…")
     subprocess.run(args, check=True, cwd=str(RAIZ))
     return {p.name for p in APP.iterdir()}   # lo que trae el runtime de Python
+
+
+# Linux: librerías que toda distribución trae (la norma "manylinux" las da por supuestas). Las del sistema donde se
+# compila suelen ser más nuevas y subirían la glibc mínima a la de ese sistema: se usan las del usuario.
+DEL_SISTEMA = ("libstdc++.so.6", "libgcc_s.so.1")
+
+
+def quitar_librerias_del_sistema():
+    for nombre in DEL_SISTEMA:
+        (APP / nombre).unlink(missing_ok=True)
+
+
+def glibc_minima():
+    """La glibc más nueva que piden el ejecutable y sus librerías (con objdump, de binutils), p. ej. (2, 28)."""
+    binarios = [SALIDA / EJECUTABLE, *(p for p in APP.rglob("*.so*") if p.is_file() and not p.is_symlink())]
+    maxima = (0, 0)
+    for b in binarios:
+        r = subprocess.run(["objdump", "-T", str(b)], capture_output=True, text=True)
+        for v in re.findall(r"GLIBC_(\d+)\.(\d+)", r.stdout):
+            maxima = max(maxima, tuple(int(x) for x in v))
+    return maxima
+
+
+def revisar_glibc():
+    """Muestra la glibc mínima; con --glibc-max X.Y falla si se pasa (la versión de Linux debe correr en distros
+    antiguas)."""
+    if not shutil.which("objdump"):
+        print("⚠ Sin objdump (paquete binutils): no se revisa la glibc mínima.")
+        return "--glibc-max" not in sys.argv
+    minima = glibc_minima()
+    print(f"Pide glibc {minima[0]}.{minima[1]} o más nueva.")
+    tope = _opcion("--glibc-max")
+    if tope and minima > tuple(int(x) for x in tope.split(".")[:2]):
+        print(f"  ✗ más nueva que {tope}: compila en un sistema más antiguo (ver .github/workflows/linux.yml)")
+        return False
+    return True
 
 
 def archivos_del_codigo():
@@ -267,11 +305,15 @@ if __name__ == "__main__":
     print(f"{NOMBRE} {version()}")
     limpiar_dist()
     runtime = pyinstaller()
+    if not WINDOWS:
+        quitar_librerias_del_sistema()
     copiar_codigo()
     ok = prueba()
     limpiar_datos()
     if not verificar_sin_datos(runtime):
         sys.exit("⚠ La carpeta portable tiene algo que no es de la app: no se empaqueta.")
+    if not WINDOWS and not revisar_glibc():
+        sys.exit("⚠ La versión de Linux no correría en distribuciones antiguas: no se empaqueta.")
     if "--sin-zip" not in sys.argv:
         z = comprimir()
         print(f"✓ Listo: {SALIDA}  ·  {z.name} ({z.stat().st_size / 1e6:.0f} MB)")

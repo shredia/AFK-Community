@@ -1,10 +1,14 @@
 # Compila la versión de Linux y la sube al Release.
 #
-# Se compila en Ubuntu 22.04 a propósito: un ejecutable de PyInstaller solo corre en distribuciones con una glibc
-# igual o más nueva que la del sistema donde se compiló, así que compilar en uno antiguo hace que funcione en casi
-# todas (Ubuntu 22.04+, Debian 12+, Fedora, Arch, Mint...).
+# Un ejecutable de PyInstaller solo corre en distribuciones con una glibc igual o más nueva que la del sistema donde
+# se compiló. Por eso se compila dentro de AlmaLinux 8 (glibc 2.28, de 2018): así funciona en casi todas las
+# distribuciones de escritorio de 2019 en adelante (Ubuntu 20.04+, Debian 10+, Mint 20+, Fedora 29+, RHEL/Rocky 8+,
+# openSUSE Leap 15.3+, Arch, Manjaro...).
 #
-# Se ejecuta solo al publicar un Release (sube AFK-Community-linux.tar.gz a ese Release), o a mano desde la pestaña
+# Python 3.14 no viene en AlmaLinux 8: se compila aquí, contra el Tcl/Tk del sistema (que dibuja las fuentes con
+# Xft: texto suavizado y emojis). Se guarda en caché, así que solo tarda la primera vez.
+#
+# Se ejecuta al publicar un Release (sube AFK-Community-linux.tar.gz a ese Release), o a mano desde la pestaña
 # Actions ("Run workflow"): en ese caso deja el .tar.gz como artefacto descargable, sin tocar ningún Release.
 name: Linux
 
@@ -16,33 +20,67 @@ on:
 permissions:
   contents: write   # para subir el archivo al Release
 
+env:
+  PYTHON_VERSION: "3.14.10"
+
 jobs:
   linux:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container: almalinux:8
     steps:
+      - name: Herramientas y librerías del sistema
+        run: |
+          dnf install -y dnf-plugins-core
+          dnf config-manager --set-enabled powertools
+          dnf install -y git gcc make tar xz curl findutils binutils pkgconf-pkg-config \
+            tcl-devel tk-devel libX11-devel libXft-devel \
+            openssl-devel libffi-devel zlib-devel bzip2-devel xz-devel sqlite-devel readline-devel \
+            ncurses-devel gdbm-devel libuuid-devel \
+            xorg-x11-server-Xvfb dejavu-sans-fonts
+
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
+      - name: Permitir git en la carpeta del repositorio (el contenedor corre como root)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Librerías del sistema (Tk, pantalla virtual para la prueba)
-        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Caché de Python
+        id: cache-python
+        uses: actions/cache@v4
+        with:
+          path: /opt/python
+          key: python-${{ env.PYTHON_VERSION }}-almalinux8
+
+      - name: Compilar Python ${{ env.PYTHON_VERSION }}
+        if: steps.cache-python.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz" | tar xJ -C /tmp
+          cd "/tmp/Python-$PYTHON_VERSION"
+          ./configure --prefix=/opt/python --enable-shared LDFLAGS="-Wl,-rpath,/opt/python/lib" > /dev/null
+          make -j"$(nproc)" > /dev/null
+          make altinstall > /dev/null
+
+      - name: Revisar Python (tkinter, ssl)
+        run: /opt/python/bin/python3.14 -c "import tkinter, ssl, ctypes, sqlite3; print(tkinter.TkVersion, ssl.OPENSSL_VERSION)"
 
       - name: Dependencias de Python
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pyinstaller
+          /opt/python/bin/python3.14 -m venv /opt/venv
+          /opt/venv/bin/python -m pip install --upgrade pip
+          /opt/venv/bin/python -m pip install -r requirements.txt pyinstaller
 
-      - name: Compilar (con la prueba del ejecutable)
+      - name: Compilar (con la prueba del ejecutable y la revisión de glibc)
         # El código sale de git: no hay cuentas tuyas que revisar
-        run: xvfb-run -a python herramientas/construir_exe.py --sin-revision-personal
+        run: |
+          Xvfb :99 -screen 0 1280x800x24 &
+          export DISPLAY=:99
+          /opt/venv/bin/python herramientas/construir_exe.py --sin-revision-personal --glibc-max 2.28
 
       - name: Subir al Release
         if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/AFK-Community-linux.tar.gz --clobber
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: dist/AFK-Community-linux.tar.gz
 
       - name: Guardar como artefacto (ejecución manual)
         if: github.event_name != 'release'
