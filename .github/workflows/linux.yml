@@ -1,0 +1,52 @@
+# Compila la versión de Linux y la sube al Release.
+#
+# Se compila en Ubuntu 22.04 a propósito: un ejecutable de PyInstaller solo corre en distribuciones con una glibc
+# igual o más nueva que la del sistema donde se compiló, así que compilar en uno antiguo hace que funcione en casi
+# todas (Ubuntu 22.04+, Debian 12+, Fedora, Arch, Mint...).
+#
+# Se ejecuta solo al publicar un Release (sube AFK-Community-linux.tar.gz a ese Release), o a mano desde la pestaña
+# Actions ("Run workflow"): en ese caso deja el .tar.gz como artefacto descargable, sin tocar ningún Release.
+name: Linux
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # para subir el archivo al Release
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Librerías del sistema (Tk, pantalla virtual para la prueba)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Dependencias de Python
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Compilar (con la prueba del ejecutable)
+        # El código sale de git: no hay cuentas tuyas que revisar
+        run: xvfb-run -a python herramientas/construir_exe.py --sin-revision-personal
+
+      - name: Subir al Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/AFK-Community-linux.tar.gz --clobber
+
+      - name: Guardar como artefacto (ejecución manual)
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: AFK-Community-linux
+          path: dist/AFK-Community-linux.tar.gz

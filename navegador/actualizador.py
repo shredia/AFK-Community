@@ -2,8 +2,7 @@
 Actualización automática desde GitHub (shredia/AFK-Community).
 
   - Solo se actualiza con VERSIONES PUBLICADAS: etiquetas vX.Y.Z (tags) del repositorio.
-  - Repositorio público: no hace falta nada. Si fuera privado, se usa un token de solo lectura guardado
-    en el llavero de Windows (nunca en un archivo).
+  - El repositorio es público: se consulta sin credenciales.
   - Se reemplaza solo el código. Tus datos (datos_usuario/: cuentas, assets, credenciales, preferencias...)
     no se tocan.
   - Antes de reemplazar, se guarda una copia del código actual en datos_usuario/respaldos/<versión>/.
@@ -27,9 +26,6 @@ from pathlib import Path
 
 REPO = "shredia/AFK-Community"
 API = f"https://api.github.com/repos/{REPO}"
-SERVICIO_TOKEN = "AFK-Community-GitHub"
-SERVICIO_TOKEN_ANTIGUO = "NC-GitHub"   # nombre anterior del repositorio
-USUARIO_TOKEN = "token"
 AGENTE = "nc-actualizador"
 ARCHIVO_ESTADO = "actualizacion.json"
 HORAS_ENTRE_REVISIONES = 12
@@ -40,8 +36,8 @@ PROTEGIDOS = {"datos_usuario",
               "cuentas", "perfil_esperian", "assets", "guias", "datos", "respaldos", ".venv", "node_modules",
               ".git", "config_credenciales.json", "game_accounts.json", "sources_guardados.json",
               "preferencias.json", ARCHIVO_ESTADO, "api.txt",
-              # versión portable (.exe): runtime de Python y navegador empaquetados
-              "_internal", "navegadores", "AFK-Community.exe", "dist", "build", "herramientas"}
+              # versión portable (.exe / ejecutable de Linux): runtime de Python y navegador empaquetados
+              "_internal", "navegadores", "AFK-Community.exe", "AFK-Community", "dist", "build", "herramientas"}
 
 RAIZ = Path(__file__).resolve().parent.parent
 # True dentro del .exe portable (PyInstaller): no hay pip ni main.py que ejecutar con Python
@@ -74,62 +70,35 @@ def es_copia_desarrollo():
     return (RAIZ / ".git").exists()
 
 
-# ---------------- token ----------------
-
-def leer_token():
-    try:
-        import keyring
-        return (keyring.get_password(SERVICIO_TOKEN, USUARIO_TOKEN)
-                or keyring.get_password(SERVICIO_TOKEN_ANTIGUO, USUARIO_TOKEN))
-    except Exception:
-        return None
-
-
-def guardar_token(token):
-    import keyring
-    if token:
-        keyring.set_password(SERVICIO_TOKEN, USUARIO_TOKEN, token.strip())
-    else:
-        try:
-            keyring.delete_password(SERVICIO_TOKEN, USUARIO_TOKEN)
-        except Exception:
-            pass
-
-
 # ---------------- GitHub ----------------
 
-def _pedir(url, token, binario=False, timeout=20):
+def _pedir(url, binario=False, timeout=20):
     cabeceras = {"User-Agent": AGENTE, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
-    if token:   # solo hace falta si el repositorio es privado
-        cabeceras["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=cabeceras)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             datos = r.read()
     except urllib.error.HTTPError as e:
-        if e.code == 401:
-            raise ErrorActualizacion("GitHub rechazó el token (revisa que tenga acceso de lectura a shredia/AFK-Community).")
-        if e.code == 403:
+        if e.code in (403, 429):
             raise ErrorActualizacion("GitHub limitó las consultas por ahora; inténtalo más tarde.")
         if e.code == 404:
-            raise ErrorActualizacion("No se encontró el repositorio shredia/AFK-Community (si es privado, agrega un token).")
+            raise ErrorActualizacion("No se encontró el repositorio shredia/AFK-Community en GitHub.")
         raise ErrorActualizacion(f"GitHub respondió {e.code}.")
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise ErrorActualizacion(f"Sin conexión con GitHub ({e.__class__.__name__}).")
     return datos if binario else json.loads(datos.decode("utf-8"))
 
 
-def ultima_version(token=None):
+def ultima_version():
     """{'version', 'tag', 'notas'} de la etiqueta vX.Y.Z más alta (o None si no hay ninguna)."""
-    token = token or leer_token()
-    etiquetas = _pedir(f"{API}/tags?per_page=100", token)
+    etiquetas = _pedir(f"{API}/tags?per_page=100")
     versiones = [t["name"] for t in etiquetas if re.fullmatch(r"v?\d+(\.\d+){0,2}", t.get("name", ""))]
     if not versiones:
         return None
     tag = max(versiones, key=_tupla)
     notas = ""
     try:  # si además hay un "release" con notas, se muestran
-        notas = (_pedir(f"{API}/releases/tags/{tag}", token) or {}).get("body") or ""
+        notas = (_pedir(f"{API}/releases/tags/{tag}") or {}).get("body") or ""
     except ErrorActualizacion:
         pass
     return {"version": tag.lstrip("v"), "tag": tag, "notas": notas}
@@ -164,9 +133,8 @@ def aplicar(info, progreso=print):
     """Descarga la versión, respalda el código actual y lo reemplaza. Devuelve True si cambió requirements.txt."""
     if es_copia_desarrollo():
         raise ErrorActualizacion("Esta carpeta es tu copia de desarrollo (tiene .git): actualízala con git pull.")
-    token = leer_token()
     progreso(f"Descargando {info['tag']}…")
-    datos = _pedir(f"{API}/zipball/{info['tag']}", token, binario=True, timeout=120)
+    datos = _pedir(f"{API}/zipball/{info['tag']}", binario=True, timeout=120)
     zf = zipfile.ZipFile(io.BytesIO(datos))
     nombres = [n for n in zf.namelist() if not n.endswith("/")]
     prefijo = nombres[0].split("/")[0] + "/"
@@ -199,7 +167,8 @@ def aplicar(info, progreso=print):
 
     cambio_req = archivos.get(Path("requirements.txt"), req_antes) != req_antes
     if cambio_req and CONGELADO:
-        progreso("⚠ Esta versión usa librerías nuevas: descarga e instala también el instalador (o el .zip portable) más reciente.")
+        progreso("⚠ Esta versión usa librerías nuevas: descarga e instala también el instalador (o el .zip portable, "
+                 "o el .tar.gz de Linux) más reciente.")
     elif cambio_req:
         progreso("Instalando librerías nuevas (requirements.txt)…")
         r = subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(RAIZ / "requirements.txt")],

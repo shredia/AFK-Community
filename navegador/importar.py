@@ -15,7 +15,8 @@ descargados del mismo héroe o mascota; si nunca se descargó, queda vacío.
 El héroe que usó su Special Power (golden) no viene en el archivo: con un solo héroe especial en el equipo se
 deduce (se activa solo); con dos o más no se puede saber cuál eligió.
 
-Copias de la app: un .zip con la carpeta cuentas/<cuenta>/<servidor>/ para pasarla a otro PC.
+Copias de la app: un .zip con la carpeta cuentas/<cuenta>/<servidor>/. Es lo que se le manda a un amigo
+(al importarlo se guardan solo sus runs, en cuentas/_amigos/) y sirve para pasar tus datos a otro PC.
 """
 import json
 import zipfile
@@ -80,6 +81,8 @@ def detectar(ruta):
     if isinstance(datos, list) and datos and isinstance(datos[0], dict) and "battleId" in datos[0] \
             and "rounds" in datos[0]:
         return "runs", datos
+    if isinstance(datos, dict) and "battleId" in datos and "rounds" in datos:
+        return "runs", [datos]   # afk-NC-<battleId>.json: una sola run, exportada desde su página
     return None, datos
 
 
@@ -214,7 +217,7 @@ def convertir_heroe(snap, plantillas, vis, etiquetas=None, slot=None):
     etiquetas = etiquetas or {}
     tid = _entero(snap.get("tid"))
     fijo = plantillas.heroe_tid.get(str(tid)) or {}
-    copia = plantillas.heroe_id.get(str(snap.get("id")))
+    copia = plantillas.heroe_id.get(str(snap.get("id"))) if snap.get("id") not in (None, "") else None
     nodos_lv = {str(k): _entero(v) for k, v in (snap.get("totem_node_lvs") or {}).items()}
     base_nodos = {str(n.get("key")): n for n in fijo.get("engravingNodes") or []}
     nodos = []
@@ -225,7 +228,8 @@ def convertir_heroe(snap, plantillas, vis, etiquetas=None, slot=None):
     sig = snap.get("sig")
     mueble, casillas = _muebles(snap.get("furnitures"), tid, copia)
     h = {
-        "id": str(snap.get("id")), "tid": tid, "name": snap.get("name") or fijo.get("name"),
+        "id": "" if snap.get("id") in (None, "") else str(snap.get("id")), "tid": tid,
+        "name": snap.get("name") or fijo.get("name"),
         "imageUrl": snap.get("imageUrl") or fijo.get("imageUrl"), "faction": snap.get("faction") or fijo.get("faction"),
         "quality": _entero(snap.get("quality")),
         "sig": None if sig is None else (_entero(sig.get("lv")) if isinstance(sig, dict) else _entero(sig)),
@@ -275,14 +279,6 @@ def carpetas_servidor(base_dir):
 
 CARPETA_AMIGOS = "_amigos"
 CARPETAS_ESPECIALES = {CARPETA_AMIGOS, "_sin_asignar"}
-
-
-def resumen_runs(runs):
-    """{'nc': n, 'otros': n, 'desde': fecha, 'hasta': fecha} del archivo."""
-    nc = [r for r in runs if r.get("mode") == "NC"]
-    fechas = sorted(str(r.get("playedAt") or "")[:10] for r in nc if r.get("playedAt"))
-    return {"nc": len(nc), "otros": len(runs) - len(nc),
-            "desde": fechas[0] if fechas else "", "hasta": fechas[-1] if fechas else ""}
 
 
 def cuentas_personales(base_dir):
@@ -377,16 +373,65 @@ def registrar_personaje(base_dir, uid, servidor, nombre, nivel=None):
     return carpeta
 
 
-def sugerir_destino_runs(base_dir, runs):
-    """(carpeta, coincidencias) del servidor que ya tiene runs con las mismas fechas, o (None, 0)."""
-    fechas = {r.get("playedAt") for r in runs}
-    mejor, coincidencias = None, 0
-    for c, _ in carpetas_servidor(base_dir):
-        propias = _leer_json(c / "runs.json") or []
-        n = sum(1 for r in propias if r.get("playedAt") in fechas)
-        if n > coincidencias:
-            mejor, coincidencias = c, n
-    return mejor, coincidencias
+def _heroes_de_run(run):
+    """[(id, tid, prestado)] de los héroes de una run (afk-runs.json o runs compartidas de la app)."""
+    salida = []
+    for r in run.get("rounds") or []:
+        for h in r.get("heroes") or []:
+            snap = h.get("snapshot") or h
+            hid = snap.get("id")
+            prestado = bool(snap.get("borrowed") or snap.get("prestado")) and str(snap.get("source_type")) != "4"
+            salida.append(("" if hid in (None, "") else str(hid), str(snap.get("tid")), prestado))
+    return salida
+
+
+MIN_HEROES_COINCIDEN = 5   # copias (id + héroe) en común con un personaje para decir que las runs son suyas
+
+
+def analizar_runs(base_dir, runs, solo_nc=True):
+    """
+    Lo que se puede saber del archivo antes de importarlo:
+      nc, otros, desde, hasta    cuántas runs de NC (y de otros modos, que se omiten) y de qué fechas
+      una                        la run si el archivo trae una sola (descargada desde su página)
+      con_ids                    si los héroes traen el id de su copia (afk-runs.json sí; una run suelta no).
+                                 Sin ids no se sugiere dueño: quien importa elige (suya, de un amigo o simulada).
+      sugerida, amigo, motivo    de quién parecen: la carpeta (tuya o de un amigo) y por qué
+                                 ('fechas': ya tienes esas runs ahí · 'heroes': son las copias de ese personaje)
+      ya_estan                   cuántas de estas runs ya tienes en la carpeta sugerida
+    """
+    nc = [r for r in runs if isinstance(r, dict) and (not solo_nc or r.get("mode") in (None, "NC"))]
+    fechas = sorted(str(r.get("playedAt") or "") for r in nc if r.get("playedAt"))
+    info = {"nc": len(nc), "otros": len(runs) - len(nc), "desde": fechas[0][:10] if fechas else "",
+            "hasta": fechas[-1][:10] if fechas else "", "una": nc[0] if len(nc) == 1 else None,
+            "con_ids": False, "sugerida": None, "amigo": False, "motivo": None, "ya_estan": 0, "nombre": ""}
+    pares = set()
+    for r in nc:
+        for hid, tid, prestado in _heroes_de_run(r):
+            if hid:
+                info["con_ids"] = True
+                if not prestado and _entero(hid) < 2 ** 32:
+                    pares.add((hid, tid))
+    if not info["con_ids"]:
+        return info
+
+    candidatas = [(c, False) for c, _ in carpetas_servidor(base_dir)] + [(a["carpeta"], True) for a in amigos(base_dir)]
+    set_fechas = set(fechas)
+    mejor = (0, 0, None, False)   # (runs en común, héroes con el mismo id, carpeta, amigo)
+    for carpeta, es_amigo in candidatas:
+        propias = _leer_json(carpeta / "runs.json") or []
+        en_comun = sum(1 for r in propias if str(r.get("playedAt") or "") in set_fechas)
+        mismo_id = 0
+        if not es_amigo:
+            roster = [h for h in (cargar_cuenta_actual(carpeta) or {}).get("roster") or [] if isinstance(h, dict)]
+            mismo_id = len(pares & {(str(h.get("id")), str(h.get("tid"))) for h in roster})
+        if (en_comun, mismo_id) > mejor[:2]:
+            mejor = (en_comun, mismo_id, carpeta, es_amigo)
+    en_comun, mismo_id, carpeta, es_amigo = mejor
+    if en_comun or mismo_id >= MIN_HEROES_COINCIDEN:
+        ficha = _leer_json(carpeta / f"{carpeta.name}.json") or {}
+        info.update(sugerida=carpeta, amigo=es_amigo, ya_estan=en_comun, nombre=ficha.get("name") or carpeta.name,
+                    motivo="fechas" if en_comun else "heroes")
+    return info
 
 
 def _nombre_carpeta(texto):
@@ -407,11 +452,20 @@ def amigos(base_dir):
     return salida
 
 
-def carpeta_amigo(base_dir, nombre, servidor=""):
-    """cuentas/_amigos/<nombre>[_<servidor>]/ (la crea con su ficha si no existe)."""
+SUFIJO_SIMULADA = " (simulación)"
+
+
+def carpeta_amigo(base_dir, nombre, servidor="", simulada=False):
+    """
+    cuentas/_amigos/<nombre>[_<servidor>]/ (la crea con su ficha si no existe).
+    simulada: runs del simulador de la página, no jugadas. Van aparte, como un amigo, con «(simulación)» en el
+    nombre para distinguirlas en el optimizador.
+    """
     nombre, servidor = str(nombre).strip(), str(servidor or "").strip()
     if not nombre:
-        raise ValueError(tr("Escribe el nombre de tu amigo."))
+        raise ValueError(tr("Escribe un nombre para la simulación.") if simulada else tr("Escribe el nombre de tu amigo."))
+    if simulada and not nombre.endswith(SUFIJO_SIMULADA):
+        nombre += SUFIJO_SIMULADA
     for a in amigos(base_dir):
         if a["nombre"].lower() == nombre.lower() and str(a["servidor"]) == servidor:
             return a["carpeta"]
@@ -421,8 +475,10 @@ def carpeta_amigo(base_dir, nombre, servidor=""):
     while carpeta.exists():
         carpeta, n = raiz / f"{carpeta_base}_{n}", n + 1
     carpeta.mkdir(parents=True)
-    _escribir_json(carpeta / f"{carpeta.name}.json",
-                   {"uid": f"amigo:{carpeta.name}", "name": nombre, "svr_id": servidor, "amigo": True}, indent=2)
+    ficha = {"uid": f"amigo:{carpeta.name}", "name": nombre, "svr_id": servidor, "amigo": True}
+    if simulada:
+        ficha["simulada"] = True
+    _escribir_json(carpeta / f"{carpeta.name}.json", ficha, indent=2)
     return carpeta
 
 
@@ -523,15 +579,21 @@ def importar_runs(base_dir, runs, carpeta, progreso=_sin_progreso):
             heroes = []
             for h in sorted(r.get("heroes") or [], key=lambda x: _entero(x.get("slot"))):
                 snap = h.get("snapshot") or {}
+                if snap.get("id") in (None, "") and snap.get("borrowed") and str(snap.get("source_type")) != "4":
+                    # la run descargada desde su página no trae el id de la copia: un mercenario recibe un id
+                    # temporal (≥ 2^32) para que no se confunda con un dimensional arrendado (que es tuyo)
+                    snap = dict(snap, id=2 ** 32 + _entero(snap.get("tid")))
                 heroe = convertir_heroe(snap, plantillas, vis, slot=h.get("slot"))
                 if _stats(h.get("stats")):
                     heroe["stats"] = _stats(h.get("stats"))
+                con_id = snap.get("id") not in (None, "")   # sin id: todo lo que no es prestado cuenta como tuyo
                 if str(snap.get("source_type")) == "4":
                     heroe["arrendado"] = True  # dimensional arrendado: es tuyo aunque venga 'borrowed'
-                    ids_propios.add(str(snap.get("id")))
+                    if con_id:
+                        ids_propios.add(str(snap.get("id")))
                 elif snap.get("borrowed") or _entero(snap.get("id")) >= 2 ** 32:
                     heroe["prestado"] = True   # mercenario: el optimizador lo marca como prestado
-                else:
+                elif con_id:
                     ids_propios.add(str(snap.get("id")))
                 heroes.append(heroe)
             mascotas = r.get("pets") or []
@@ -712,11 +774,81 @@ def contenido_copia(ruta_zip):
     return sorted(carpetas)
 
 
+def _json_zip(z, nombre, defecto=None):
+    try:
+        return json.loads(z.read(nombre).decode("utf-8"))
+    except (KeyError, UnicodeDecodeError, json.JSONDecodeError):
+        return defecto
+
+
+def info_copia(base_dir, ruta_zip):
+    """
+    Qué trae el .zip, para decidir cómo importarlo:
+    {"carpetas", "nombre", "servidor", "uid", "runs", "amigo" (ya era un amigo), "mio" (es uno de tus personajes)}.
+    """
+    carpetas = contenido_copia(ruta_zip)
+    info = {"carpetas": carpetas, "nombre": "", "servidor": "", "uid": "", "runs": 0, "amigo": False, "mio": False}
+    if len(carpetas) != 1:
+        return info
+    cuenta, servidor = carpetas[0]
+    with zipfile.ZipFile(ruta_zip) as z:
+        ficha = _json_zip(z, f"{cuenta}/{servidor}/{servidor}.json") or {}
+        runs = _json_zip(z, f"{cuenta}/{servidor}/runs.json") or []
+    uid = str(ficha.get("uid") or "")
+    info.update(nombre=ficha.get("name") or "", uid=uid, runs=len(runs) if isinstance(runs, list) else 0,
+                servidor=str(ficha.get("svr_id") or (servidor if servidor.isdigit() else "")),
+                amigo=bool(ficha.get("amigo")) or cuenta == CARPETA_AMIGOS)
+    info["mio"] = bool(uid) and not info["amigo"] and uid in cargar_mapa_personajes(base_dir)
+    return info
+
+
+def importar_copia_de_amigo(base_dir, ruta_zip, nombre, servidor="", progreso=_sin_progreso):
+    """
+    Importa el .zip de otro jugador como amigo, en cuentas/_amigos/<nombre>/. Solo se copian sus runs
+    (runs.json y detalles/, con el SP de cada ronda y las estadísticas); su 'Mi cuenta', Fractura y bloqueos
+    no, para que nada suyo se mezcle con lo tuyo. Si ya tenías ese amigo, se agregan las runs nuevas.
+    """
+    carpetas = contenido_copia(ruta_zip)
+    if len(carpetas) != 1:
+        raise ValueError(tr("La copia trae varios personajes: pídele a tu amigo que exporte uno solo."))
+    cuenta, srv = carpetas[0]
+    prefijo = f"{cuenta}/{srv}/"
+    carpeta = carpeta_amigo(base_dir, nombre, servidor)
+    ficha = _leer_json(carpeta / f"{carpeta.name}.json") or {}
+    personaje, dueno = str(ficha.get("uid") or carpeta.name), ficha.get("name") or nombre
+    with zipfile.ZipFile(ruta_zip) as z:
+        runs = _json_zip(z, prefijo + "runs.json") or []
+        detalles = [n for n in z.namelist() if n.startswith(prefijo + "detalles/") and n.endswith(".json")
+                    and n.count("/") == 3]
+        for i, nombre_zip in enumerate(detalles, 1):
+            detalle = _json_zip(z, nombre_zip)
+            if isinstance(detalle, dict):
+                detalle["owner"] = dueno
+                _escribir_json(carpeta / "detalles" / PurePosixPath(nombre_zip).name, detalle)
+            if i % 100 == 0:
+                progreso(tr("   {0}/{1} runs", i, len(detalles)))
+    lista = _leer_json(carpeta / "runs.json") or []
+    previas = {str(r.get("id")) for r in lista}
+    nuevas = [dict(r, character=personaje, owner=dueno, mine=False, amigo=True)
+              for r in runs if isinstance(r, dict) and str(r.get("id")) not in previas]
+    if nuevas:
+        lista = sorted(lista + nuevas, key=lambda r: str(r.get("playedAt") or ""), reverse=True)
+        _escribir_json(carpeta / "runs.json", lista, indent=4)
+    return {"carpeta": carpeta, "nuevas": len(nuevas), "ya_estaban": len(runs) - len(nuevas)}
+
+
 def importar_copia(base_dir, ruta_zip, progreso=_sin_progreso):
-    """Extrae la copia en cuentas/ (reemplaza los archivos con el mismo nombre)."""
-    contenido_copia(ruta_zip)   # valida las rutas antes de escribir nada
+    """Restaura tu propia copia en cuentas/ (reemplaza los archivos con el mismo nombre)."""
+    carpetas = contenido_copia(ruta_zip)   # valida las rutas antes de escribir nada
     destino = Path(base_dir) / "cuentas"
     with zipfile.ZipFile(ruta_zip) as z:
+        # no pisar a otro personaje que esté en la misma carpeta (p. ej. local/<servidor>/ de otro jugador)
+        for cuenta, srv in carpetas:
+            uid_zip = str((_json_zip(z, f"{cuenta}/{srv}/{srv}.json") or {}).get("uid") or "")
+            uid_aqui = str((_leer_json(destino / cuenta / srv / f"{srv}.json") or {}).get("uid") or "")
+            if uid_zip and uid_aqui and uid_zip != uid_aqui:
+                raise ValueError(tr("La copia es de otro personaje y reemplazaría al que tienes en {0}/{1}. "
+                                    "Si es de un amigo, impórtala como «De un amigo».", cuenta, srv))
         nombres = [n for n in z.namelist() if not n.endswith("/")]
         for i, nombre in enumerate(nombres, 1):
             salida = destino.joinpath(*PurePosixPath(nombre).parts)
@@ -732,61 +864,9 @@ def importar_copia(base_dir, ruta_zip, progreso=_sin_progreso):
 # ============================================================
 # Runs para compartir (.json con el SP de cada ronda y las estadísticas)
 # ============================================================
-# afk-runs.json no guarda qué héroe usó su Special Power; las runs bajadas del sitio sí. Este formato
-# lleva las runs ya convertidas (con "golden" y "stats") para pasárselas a un amigo sin perder ese dato.
+# Formato de versiones anteriores para compartir runs (ahora se comparte con el .zip). Se sigue pudiendo
+# importar: lleva las runs ya convertidas, con "golden" (SP) y "stats".
 FORMATO_RUNS_APP = "afk-community-runs"
-
-
-def _compactar_para_compartir(detalle):
-    from .optimizador import _compactar_heroe
-    rondas = []
-    for r in detalle.get("rounds") or []:
-        r2 = {k: r.get(k) for k in ("index", "bossId", "recorded", "pet", "golden", "estadisticas", "outcome")
-              if r.get(k) is not None}
-        r2["heroes"] = [_compactar_heroe(h) for h in r.get("heroes") or []]
-        rondas.append(r2)
-    plantilla = lambda h: {"tid": h.get("tid"), "quality": h.get("quality"), "sig": h.get("sig"),
-                           "engraving": h.get("engraving")}
-    return {
-        "id": detalle.get("id"), "playedAt": detalle.get("playedAt"), "result": detalle.get("result"),
-        "rounds": rondas,
-        "roster": [{"id": h.get("id")} for h in detalle.get("roster") or []],
-        "borrow": [plantilla(h) for h in detalle.get("borrow") or []],
-        "test": [plantilla(h) for h in detalle.get("test") or []],
-        "collectionTags": detalle.get("collectionTags") or {}, "gearOptions": detalle.get("gearOptions") or {},
-        "tree": detalle.get("tree") or {},
-    }
-
-
-def exportar_runs(carpeta, destino, progreso=_sin_progreso):
-    """Guarda las runs de NC de una carpeta en un .json para compartir (con SP y estadísticas). Devuelve n."""
-    carpeta = Path(carpeta)
-    ficha = _leer_json(carpeta / f"{carpeta.name}.json") or {}
-    lista = {str(r.get("id")): r for r in _leer_json(carpeta / "runs.json") or []}
-    runs = []
-    archivos = sorted((carpeta / "detalles").glob("*.json"))
-    for i, archivo in enumerate(archivos, 1):
-        detalle = _leer_json(archivo)
-        if not isinstance(detalle, dict) or not detalle.get("rounds"):
-            continue
-        resumen = lista.get(archivo.stem) or {}
-        detalle.setdefault("playedAt", resumen.get("playedAt"))
-        if not detalle.get("result"):
-            detalle["result"] = resumen.get("result") or {}
-        runs.append(_compactar_para_compartir(detalle))
-        if i % 50 == 0:
-            progreso(tr("   {0}/{1} runs", i, len(archivos)))
-    datos = {"format": FORMATO_RUNS_APP, "version": 1, "nombre": ficha.get("name") or carpeta.name,
-             "servidor": ficha.get("svr_id") or (carpeta.name if carpeta.name.isdigit() else ""), "runs": runs}
-    _escribir_json(Path(destino), datos)
-    return len(runs)
-
-
-def resumen_runs_app(datos):
-    runs = datos.get("runs") or []
-    fechas = sorted(str(r.get("playedAt") or "")[:10] for r in runs if r.get("playedAt"))
-    return {"nc": len(runs), "otros": 0, "desde": fechas[0] if fechas else "", "hasta": fechas[-1] if fechas else "",
-            "nombre": datos.get("nombre"), "servidor": datos.get("servidor")}
 
 
 def importar_runs_app(base_dir, datos, carpeta, progreso=_sin_progreso):

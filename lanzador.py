@@ -1,8 +1,8 @@
 """
-Punto de entrada del .exe portable (AFK-Community.exe).
+Punto de entrada del ejecutable portable (AFK-Community.exe en Windows, AFK-Community en Linux).
 
 Carpeta portable:
-    AFK-Community.exe   este lanzador
+    AFK-Community.exe   este lanzador (en Linux, AFK-Community)
     app/                Python y librerías (PyInstaller), el código en .py (aplicacion/, navegador/, idiomas/...)
                         y los datos del usuario (cuentas/, preferencias.json...)
     README.md
@@ -37,7 +37,14 @@ if CONGELADO:
     import tkinter, tkinter.ttk, tkinter.messagebox, tkinter.filedialog, tkinter.simpledialog, tkinter.font  # noqa
     import PIL.Image, PIL.ImageTk, PIL.ImageDraw, PIL.ImageFont, PIL.ImageOps, PIL.ImageFilter  # noqa
     import PIL.ImageEnhance, PIL.ImageChops, PIL.ImageStat, PIL.ImageGrab  # noqa
-    import keyring, keyring.backends.Windows, win32ctypes.pywin32.win32cred, win32ctypes.core  # noqa
+    import keyring  # noqa
+    if sys.platform == "win32":
+        import keyring.backends.Windows, win32ctypes.pywin32.win32cred, win32ctypes.core  # noqa
+    else:   # Linux: el llavero del escritorio (GNOME Keyring / KWallet) por Secret Service
+        try:
+            import keyring.backends.SecretService, secretstorage, jeepney  # noqa
+        except ImportError:
+            pass
     import openpyxl  # noqa
 
 # El código de la app se busca primero en app/ (o junto al .exe)
@@ -46,20 +53,29 @@ os.chdir(BASE)
 
 
 def _prueba():
-    """AFK_PRUEBA=1: comprueba que el .exe carga la app y puede usar el llavero de Windows, y termina."""
+    """AFK_PRUEBA=1: comprueba que el ejecutable carga la app y el llavero del sistema, y termina."""
     salida = BASE / "prueba_exe.txt"
     try:
         import keyring
         kr = keyring.get_keyring()
-        if not type(kr).__module__.startswith("keyring.backends.Windows"):
-            raise RuntimeError(f"llavero de Windows no disponible ({type(kr).__name__})")
-        kr.get_password("AFK-Community-prueba", "nadie")   # lectura real (devuelve None)
+        llavero = type(kr).__name__
+        if sys.platform == "win32":
+            if not type(kr).__module__.startswith("keyring.backends.Windows"):
+                raise RuntimeError(f"llavero de Windows no disponible ({llavero})")
+            kr.get_password("AFK-Community-prueba", "nadie")   # lectura real (devuelve None)
+        else:
+            # en Linux el llavero depende del escritorio: solo lo usa el inicio de sesión del sitio (en desarrollo)
+            # y el token de GitHub, así que si falta la app igual funciona
+            try:
+                kr.get_password("AFK-Community-prueba", "nadie")
+            except Exception as error:  # noqa: BLE001
+                llavero += f" (sin acceso: {error.__class__.__name__})"
         for modulo in ("aplicacion.ventana_principal", "navegador.sitio", "navegador.scraper", "navegador.cuenta",
                        "navegador.fractura", "navegador.actualizador", "navegador.importar",
                        "navegador.roster", "navegador.bloqueos", "aplicacion.optimizador_ajustes",
                        "aplicacion.seccion_progreso", "aplicacion.seccion_amigos"):
             importlib.import_module(modulo)
-        salida.write_text(f"ok · llavero {type(kr).__name__}", encoding="utf-8")
+        salida.write_text(f"ok · llavero {llavero}", encoding="utf-8")
     except Exception as error:  # noqa: BLE001
         salida.write_text(f"error {error.__class__.__name__}: {error}", encoding="utf-8")
 

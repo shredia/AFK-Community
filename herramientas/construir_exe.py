@@ -1,17 +1,29 @@
 """
-Construye lo que se publica en cada Release de GitHub:
+Construye lo que se publica en cada Release de GitHub. PyInstaller no compila para otro sistema: cada paquete se
+genera en su sistema (el de Linux, en Linux, en WSL o en GitHub Actions: .github/workflows/linux.yml).
 
+  Windows:
     dist/AFK-Community/                  la carpeta portable
     dist/AFK-Community-portable.zip      esa carpeta comprimida
     dist/AFK-Community-setup.exe         el instalador (si Inno Setup 6 está instalado)
+        .venv\\Scripts\\python herramientas\\construir_exe.py  [--sin-zip] [--sin-instalador]
 
-    .venv\\Scripts\\python herramientas\\construir_exe.py  [--sin-zip] [--sin-instalador]
+  Linux:
+    dist/AFK-Community/                  la carpeta portable
+    dist/AFK-Community-linux.tar.gz      esa carpeta comprimida (tar conserva el permiso de ejecución)
+        python3 herramientas/construir_exe.py  [--sin-zip]
+
+  Opciones para revisar que no se filtren datos tuyos (busca en la carpeta portable tus correos, ids de cuenta
+  y nombres de personajes, sacados de tus cuentas):
+    --cuentas <ruta>          dónde están tus cuentas, si no es datos_usuario/cuentas (p. ej. compilando en WSL:
+                              /mnt/c/.../datos_usuario/cuentas)
+    --sin-revision-personal   no buscar datos tuyos (en GitHub Actions: el código sale de git y no hay cuentas)
 
 Los nombres no llevan la versión para que el enlace .../releases/latest/download/<archivo> del README
 apunte siempre a la última. La versión va dentro del instalador y en el título del Release.
 
 Carpeta portable (lo único que ve el usuario):
-  AFK-Community.exe   el lanzador
+  AFK-Community.exe   el lanzador (en Linux: AFK-Community)
   app/                Python y librerías (PyInstaller) + el código en .py (se actualiza desde GitHub)
                       + los datos del usuario, que se crean al usarla
   README.md
@@ -23,21 +35,25 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import zipfile
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 NOMBRE = "AFK-Community"
+WINDOWS = sys.platform == "win32"
+EJECUTABLE = f"{NOMBRE}.exe" if WINDOWS else NOMBRE
 DIST = RAIZ / "dist"
 SALIDA = DIST / NOMBRE
-CONTENIDO = "app"                     # carpeta junto al .exe con todo lo demás
+CONTENIDO = "app"                     # carpeta junto al ejecutable con todo lo demás
 APP = SALIDA / CONTENIDO
 ZIP = DIST / f"{NOMBRE}-portable.zip"
+TAR = DIST / f"{NOMBRE}-linux.tar.gz"
 SETUP = DIST / f"{NOMBRE}-setup.exe"
 CODIGO = ["aplicacion", "navegador", "idiomas", "recursos", "docs"]   # docs: imágenes del README
 ARCHIVOS = ["main.py", "lanzador.py", "version.py", "requirements.txt"]
-# Lo único que puede quedar arriba, junto al .exe
-PERMITIDOS_ARRIBA = {f"{NOMBRE}.exe", CONTENIDO, "README.md"}
+# Lo único que puede quedar arriba, junto al ejecutable
+PERMITIDOS_ARRIBA = {EJECUTABLE, CONTENIDO, "README.md"}
 # Lo que la app crea al usarse (la prueba del .exe puede crear alguno): se borra antes de empaquetar
 DATOS_DE_USO = ["datos_usuario", "cuentas", "datos", "assets", "guias", "respaldos", "perfil_esperian", "preferencias.json",
                 "config_credenciales.json", "game_accounts.json", "sources_guardados.json", "actualizacion.json",
@@ -66,20 +82,25 @@ def limpiar_dist():
     """Borra la carpeta y los paquetes anteriores (también los de nombre con versión, de antes de la 1.2.0)."""
     if SALIDA.exists():
         shutil.rmtree(SALIDA)
-    for viejo in [*DIST.glob(f"{NOMBRE}-*portable.zip"), *DIST.glob(f"{NOMBRE}-*setup.exe")]:
+    viejos = DIST.glob(f"{NOMBRE}-*portable.zip"), DIST.glob(f"{NOMBRE}-*setup.exe")
+    if not WINDOWS:   # en Linux se rehace solo el .tar.gz: lo de Windows que haya en dist/ se deja
+        viejos = (DIST.glob(f"{NOMBRE}-linux.tar.gz"),)
+    for viejo in [p for grupo in viejos for p in grupo]:
         viejo.unlink()
 
 
 def pyinstaller():
-    ico = icono()
+    llavero = ["--collect-submodules", "win32ctypes"] if WINDOWS else \
+        ["--collect-submodules", "secretstorage", "--collect-submodules", "jeepney"]   # Secret Service (Linux)
     args = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--windowed",
             "--name", NOMBRE, "--distpath", str(DIST), "--workpath", str(RAIZ / "build"),
             "--specpath", str(RAIZ / "build"), "--contents-directory", CONTENIDO,
-            # el código de la app NO va dentro del .exe: se carga desde los .py de app/
+            # el código de la app NO va dentro del ejecutable: se carga desde los .py de app/
             "--exclude-module", "aplicacion", "--exclude-module", "navegador", "--exclude-module", "idiomas",
-            "--collect-submodules", "keyring", "--collect-submodules", "win32ctypes",
+            "--collect-submodules", "keyring", *llavero,
             "--collect-submodules", "openpyxl", "--hidden-import", "PIL._tkinter_finder",
             str(RAIZ / "lanzador.py")]
+    ico = icono() if WINDOWS else None   # en Linux el ícono lo pone el escritorio, no el ejecutable
     if ico:
         args[3:3] = ["--icon", str(ico)]
     print("PyInstaller…")
@@ -126,12 +147,23 @@ def limpiar_datos():
     shutil.rmtree(APP / "__pycache__", ignore_errors=True)
 
 
+def _opcion(nombre):
+    """Valor de una opción '--nombre valor' de la línea de comandos (o None)."""
+    if nombre in sys.argv and sys.argv.index(nombre) + 1 < len(sys.argv):
+        return sys.argv[sys.argv.index(nombre) + 1]
+    return None
+
+
 def _marcas_personales():
     """Textos que delatan datos tuyos: ids de cuenta, correos y nombres de personajes de tus cuentas (en este PC)."""
     marcas = set()
-    cuentas = RAIZ / "datos_usuario" / "cuentas"
+    if "--sin-revision-personal" in sys.argv:
+        print("  (sin revisión de datos personales: --sin-revision-personal)")
+        return marcas
+    cuentas = Path(_opcion("--cuentas") or RAIZ / "datos_usuario" / "cuentas")
     if not cuentas.is_dir():
-        sys.exit(f"⚠ No encuentro tus cuentas en {cuentas}: no se puede revisar que no se filtren datos tuyos.")
+        sys.exit(f"⚠ No encuentro tus cuentas en {cuentas}: no se puede revisar que no se filtren datos tuyos. "
+                 "Indica dónde están con --cuentas <ruta>.")
     for cuenta in cuentas.glob("*"):
         if cuenta.is_dir() and not cuenta.name.startswith("_") and len(cuenta.name) > 12:
             marcas.add(cuenta.name)
@@ -178,10 +210,10 @@ def verificar_sin_datos(runtime):
 
 
 def prueba():
-    print("Probando el .exe (carga de la app y llavero de Windows)…")
+    print(f"Probando {EJECUTABLE} (carga de la app y llavero del sistema)…")
     resultado = APP / "prueba_exe.txt"
     resultado.unlink(missing_ok=True)
-    subprocess.run([str(SALIDA / f"{NOMBRE}.exe")], env={**os.environ, "AFK_PRUEBA": "1"}, timeout=180)
+    subprocess.run([str(SALIDA / EJECUTABLE)], env={**os.environ, "AFK_PRUEBA": "1"}, timeout=180)
     texto = resultado.read_text(encoding="utf-8") if resultado.exists() else "sin resultado"
     resultado.unlink(missing_ok=True)
     print("  →", texto)
@@ -189,6 +221,11 @@ def prueba():
 
 
 def comprimir():
+    if not WINDOWS:   # .tar.gz: conserva el permiso de ejecución y los enlaces que deja PyInstaller
+        print(f"Comprimiendo {TAR.name}…")
+        with tarfile.open(TAR, "w:gz", compresslevel=6) as t:
+            t.add(SALIDA, arcname=NOMBRE)
+        return TAR
     print(f"Comprimiendo {ZIP.name}…")
     with zipfile.ZipFile(ZIP, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         for ruta in SALIDA.rglob("*"):
@@ -238,9 +275,9 @@ if __name__ == "__main__":
     if "--sin-zip" not in sys.argv:
         z = comprimir()
         print(f"✓ Listo: {SALIDA}  ·  {z.name} ({z.stat().st_size / 1e6:.0f} MB)")
-    if ok and "--sin-instalador" not in sys.argv:
+    if ok and WINDOWS and "--sin-instalador" not in sys.argv:
         setup = instalador()
         if setup and setup.exists():
             print(f"✓ Instalador: {setup.name} ({setup.stat().st_size / 1e6:.0f} MB)")
     if not ok:
-        sys.exit("⚠ La prueba del .exe falló: revisa el mensaje de arriba.")
+        sys.exit(f"⚠ La prueba de {EJECUTABLE} falló: revisa el mensaje de arriba.")

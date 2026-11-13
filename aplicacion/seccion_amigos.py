@@ -9,7 +9,15 @@ from idiomas import tr, N_
 
 
 def a_la_papelera(ruta):
-    """Envía una carpeta a la Papelera de reciclaje de Windows (se puede recuperar). True si lo logró."""
+    """Envía una carpeta a la papelera del sistema (se puede recuperar). True si lo logró."""
+    import sys
+    if sys.platform != "win32":   # Linux: la papelera del escritorio (gio, de GLib; viene con GNOME, KDE, XFCE...)
+        import shutil
+        import subprocess
+        if not shutil.which("gio"):
+            return False
+        r = subprocess.run(["gio", "trash", str(Path(ruta).resolve())], capture_output=True)
+        return r.returncode == 0 and not Path(ruta).exists()
     import ctypes
     from ctypes import wintypes
 
@@ -46,7 +54,8 @@ class SeccionAmigos:
         marco.pack(fill="both", expand=True)
         ttk.Label(marco, text=tr("Amigos"), style="Titulo.TLabel").pack(anchor="w")
         ttk.Label(marco, style="Muted.TLabel", wraplength=1000, justify="left", text=tr(
-            "Runs de NC de otros jugadores, importadas desde su afk-runs.json. El optimizador puede mezclarlas con "
+            "Runs de NC de otros jugadores, importadas desde el .zip que te mandan (lo exportan en Ajustes → "
+            "Importar / exportar) o desde su afk-runs.json. El optimizador puede mezclarlas con "
             "las tuyas y te dice qué equipos más rápidos podrías copiar y qué te falta.")).pack(anchor="w", pady=(2, 12))
 
         botones = ttk.Frame(marco)

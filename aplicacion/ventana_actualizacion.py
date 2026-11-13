@@ -1,16 +1,13 @@
 # aplicacion/ventana_actualizacion.py
-"""Actualizaciones desde GitHub: token (llavero de Windows), buscar versión nueva e instalarla."""
+"""Actualizaciones desde GitHub: buscar versión nueva e instalarla."""
 import threading
 import tkinter as tk
-import webbrowser
 from tkinter import ttk, messagebox
 
 from navegador import actualizador as act
 from aplicacion.ventana_progreso import VentanaProgreso
 from aplicacion import tema
 from idiomas import tr
-
-URL_TOKEN = "https://github.com/settings/personal-access-tokens/new"
 
 
 def instalar(parent, info, al_terminar=None):
@@ -53,7 +50,7 @@ class VentanaActualizacion:
         self.info = None
         self.top = tk.Toplevel(parent)
         self.top.title(tr("Actualizaciones"))
-        self.top.geometry("640x470")
+        self.top.geometry("640x300")
         self.top.transient(parent)
         self._crear()
         self._refrescar()
@@ -72,49 +69,13 @@ class VentanaActualizacion:
         self.btn_instalar = ttk.Button(botones, text=tr("Instalar"), style="Acento.TButton", state="disabled",
                                        command=lambda: instalar(self.top, self.info, self.al_cambiar))
         self.btn_instalar.pack(side="left", padx=8)
-
-        marco = ttk.LabelFrame(t, text=tr(" Token de GitHub (opcional) "), padding=10)
-        marco.pack(fill="x", padx=16, pady=12)
-        ttk.Label(marco, style="Muted.TLabel", wraplength=580, justify="left", text=tr(
-            "Solo hace falta si el repositorio es privado (si es público, déjalo vacío). Para crearlo:\n"
-            "1. Abre la página de tokens (botón de abajo) → «Fine-grained token».\n"
-            "2. Repository access: «Only select repositories» → shredia/AFK-Community.\n"
-            "3. Permissions → Repository → Contents: «Read-only». Nada más.\n"
-            "4. Genera el token, cópialo y pégalo aquí. Se guarda en el llavero de Windows, no en un archivo.")
-        ).pack(anchor="w")
-        fila = ttk.Frame(marco)
-        fila.pack(fill="x", pady=(8, 0))
-        self.var_token = tk.StringVar()
-        ttk.Entry(fila, textvariable=self.var_token, show="•", width=48).pack(side="left")
-        ttk.Button(fila, text=tr("Guardar"), command=self._guardar_token).pack(side="left", padx=6)
-        ttk.Button(fila, text=tr("Quitar"), command=self._quitar_token).pack(side="left")
-        ttk.Button(marco, text=tr("Abrir la página de tokens de GitHub"),
-                   command=lambda: webbrowser.open(URL_TOKEN)).pack(anchor="w", pady=(8, 0))
-        self.lbl_token = ttk.Label(marco, text="", style="Muted.TLabel")
-        self.lbl_token.pack(anchor="w", pady=(6, 0))
-        ttk.Button(t, text=tr("Cerrar"), command=self.top.destroy).pack(side="right", padx=16, pady=(0, 12))
+        ttk.Button(t, text=tr("Cerrar"), command=self.top.destroy).pack(side="bottom", anchor="e", padx=16,
+                                                                         pady=(0, 12))
 
     def _refrescar(self):
         desarrollo = act.es_copia_desarrollo()
         self.lbl_version.configure(text=tr("Versión instalada: {0}", act.version_local())
                                    + (tr("  ·  copia de desarrollo (git)") if desarrollo else ""))
-        tiene = bool(act.leer_token())
-        self.lbl_token.configure(text=tr("✓ Token guardado en el llavero de Windows.") if tiene
-                                 else tr("Sin token (no hace falta si el repositorio es público)."),
-                                 foreground=tema.OK if tiene else tema.MUTED)
-
-    def _guardar_token(self):
-        token = self.var_token.get().strip()
-        if not token:
-            return
-        act.guardar_token(token)
-        self.var_token.set("")
-        self._refrescar()
-        self._buscar()
-
-    def _quitar_token(self):
-        act.guardar_token(None)
-        self._refrescar()
 
     def _buscar(self):
         self.lbl_estado.configure(text=tr("Buscando en GitHub…"), foreground=tema.TEXTO)

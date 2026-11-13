@@ -4,14 +4,17 @@ A desktop app for **AFK Arena** players. It helps you build your fastest **Night
 
 Everything runs on your PC. Your data stays in the app folder and is never uploaded anywhere.
 
-## ⬇ Download (Windows)
+## ⬇ Download
 
 | | |
 |---|---|
-| **[Installer — AFK-Community-setup.exe](https://github.com/shredia/AFK-Community/releases/latest/download/AFK-Community-setup.exe)** | Recommended. Run it and you're done. |
-| [Portable — AFK-Community-portable.zip](https://github.com/shredia/AFK-Community/releases/latest/download/AFK-Community-portable.zip) | No installation: unzip it and open the `.exe`. |
+| **[Windows installer — AFK-Community-setup.exe](https://github.com/shredia/AFK-Community/releases/latest/download/AFK-Community-setup.exe)** | Recommended on Windows. Run it and you're done. |
+| [Windows portable — AFK-Community-portable.zip](https://github.com/shredia/AFK-Community/releases/latest/download/AFK-Community-portable.zip) | No installation: unzip it and open the `.exe`. |
+| [Linux — AFK-Community-linux.tar.gz](https://github.com/shredia/AFK-Community/releases/latest/download/AFK-Community-linux.tar.gz) | 64-bit. Extract it and run `AFK-Community` (see *Installation*). |
 
 All versions and their changes: [Releases](https://github.com/shredia/AFK-Community/releases).
+
+💬 **Questions, problems or ideas?** Join the community on **[Discord](https://discord.gg/bX5nQpZX6q)**. The app's Home screen has a button for it too.
 
 > **Note:** the direct connection to esperianarchive.com (login, fetch, run downloads) is **in development**. Meanwhile, the app works with the files you download from the site yourself (see *Getting started*).
 
@@ -31,6 +34,17 @@ The app is installed in `%LOCALAPPDATA%\Programs\AFK-Community`, and your data i
 1. Download **AFK-Community-portable.zip** (link above).
 2. Unzip it anywhere you can write, for example in `Documents` (not in `C:\Program Files`).
 3. Open `AFK-Community.exe`. The folder contains just the `.exe`, the `app` folder and this README: keep them together, the `.exe` doesn't work on its own.
+
+**Linux (64-bit):**
+
+1. Download **AFK-Community-linux.tar.gz** (link above).
+2. Extract it in a folder you can write to, for example your home folder:
+   ```bash
+   tar -xzf AFK-Community-linux.tar.gz -C ~
+   ```
+3. Run `~/AFK-Community/AFK-Community` (or double-click it in your file manager). Keep the `app` folder next to it.
+
+It works on Ubuntu 22.04 or newer, Debian 12+, Fedora, Arch, Mint and similar; Python doesn't need to be installed. Everything works as on Windows.
 
 The app checks GitHub for new versions and offers to update itself.
 
@@ -118,7 +132,7 @@ If a team has only one special hero, the app marks that hero automatically, beca
 Your resources, heroes, collections, gear and pets from your last `afk-inventory.json` import. For each hero you see its build, whether its collection meets the guide's recommendation, and how you've done with it in NC.
 
 ### ☺ Friends
-Import a friend's `afk-runs.json`, or a shared runs file they send you (see *Import / export*). The optimizer can mix their teams with yours, and **What I'm missing** shows what to copy from them. In this section you can also rename friends, optimize with their runs, or send them to the Recycle Bin.
+Import the `.zip` a friend sends you (they create it with **Export .zip…**, see *Import / export*), or their `afk-runs.json`. The `.zip` is better: it keeps who used the SP in each round and the statistics. The optimizer can mix their teams with yours, and **What I'm missing** shows what to copy from them. In this section you can also rename friends, optimize with their runs, or send them to the Recycle Bin.
 
 Friends' runs are kept apart: they never mix with your own runs or with *My account*.
 
@@ -162,15 +176,23 @@ Works with the files you download from the site by hand; you don't need to log i
   - **They're mine:** pick one of your characters. The app suggests the one that already has runs from those dates. If you have none yet, import that character's inventory first.
   - **They're a friend's:** type their name (and server, if you want).
 
+  A single run downloaded from its page (`afk-NC-<id>.json`) works the same way, with one difference: that file doesn't include the heroes' ids, so the app can't tell whose it is and doesn't suggest anyone. You choose:
+  - **They're mine:** pick your character.
+  - **They're a friend's:** type their name.
+  - **It's a simulation from the site:** type a name. Simulated runs are kept apart as *name (simulación)*, so they never mix with real runs.
+
+  With `afk-runs.json` (which does include the ids), the app suggests the owner: the character that already has those runs, or the one whose heroes match.
+
   Only missing runs are added. Runs you already had get their statistics (damage, healing, energy…) added. Runs from other modes are skipped.
-- **Shared runs (`.json` exported by this app):** runs that include who used the SP in each round, plus statistics.
-- **`.zip` backup** exported by this app. Its files replace the ones you have with the same name.
+- **`.zip` exported by this app.** The app asks whose it is:
+  - **From a friend:** only their runs are saved, apart from yours, under *Friends* (name and server are filled in from the file). Their *My account*, Temporal Rift and blocks are not copied. Importing a newer `.zip` from the same friend adds the new runs.
+  - **It's mine:** restores your backup (another PC, or after a reinstall). Its files replace the ones you have with the same name. If the `.zip` is one of your characters, the app recognizes it and skips the question.
+- **Shared runs (`.json` from earlier versions):** can still be imported.
 
 The **🌐 Game accounts (Fetch)**, **🌐 My runs** and **🌐 Inventory** buttons open the site pages where you refresh and download those files.
 
 **Export**, choosing one of your servers or a friend:
-- **Export runs to share (.json):** only the NC runs, with **who used the SP in each round** and the statistics. This is the file to send to a friend, because plain `afk-runs.json` doesn't record the SP.
-- **Export .zip:** everything from that server or friend (runs, details, My account, Temporal Rift, blocks), to move it to another PC or keep a backup.
+- **Export .zip:** everything from that server or friend: runs (with **who used the SP in each round** and the statistics), My account, Temporal Rift and blocks. **This is the file to send to a friend**: their app keeps only your runs. It's also how you move your data to another PC or keep a backup.
 
 **What the files don't include:** both site files share each hero's build (quality, SI, engraving, furniture, gear and collection). They don't include the hero's role (tank/marksman/mage), engraving nodes, pet level or which slot each piece of furniture goes in. The app fills those in from what you already have for the same hero or pet.
 
@@ -191,7 +213,7 @@ python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 .venv\Scripts\python main.py                        # run from source
 .venv\Scripts\python -m idiomas actualizar          # add new UI strings to idiomas/*.json
-.venv\Scripts\python herramientas\construir_exe.py  # build dist/AFK-Community, the portable .zip and setup.exe (needs Inno Setup 6)
+.venv\Scripts\python herramientas\construir_exe.py  # Windows: dist/AFK-Community, the portable .zip and setup.exe (needs Inno Setup 6)
 .venv\Scripts\python -m navegador.actualizador publicar X.Y.Z   # tag and publish a version
 ```
 
@@ -200,3 +222,14 @@ The `.exe` is only a launcher. Its `app/` folder holds Python and its libraries,
 When you run from source, your data also lives in `datos_usuario/` (ignored by git). Older versions kept it loose in the root; the app moves it there automatically on start.
 
 To publish a version: `publicar X.Y.Z` (above), then build, then upload `dist/AFK-Community-setup.exe` and `dist/AFK-Community-portable.zip` to the GitHub Release of tag `vX.Y.Z`, keeping those exact file names (the download links point to them).
+
+**Linux build.** PyInstaller can't build for another OS, so the Linux package is built on Linux. When you publish the GitHub Release, the *Linux* workflow (`.github/workflows/linux.yml`) builds it on Ubuntu 22.04 and uploads `AFK-Community-linux.tar.gz` to that Release by itself. It builds on an old Ubuntu on purpose: the executable only runs on distributions with the same or a newer glibc. You can also run the workflow by hand from the *Actions* tab; then the file is left as a downloadable artifact.
+
+To build it locally (for testing), on Linux or WSL:
+
+```bash
+python3 -m venv ~/afk-venv && ~/afk-venv/bin/pip install -r requirements.txt pyinstaller
+~/afk-venv/bin/python herramientas/construir_exe.py --cuentas <path to datos_usuario/cuentas>   # dist/AFK-Community-linux.tar.gz
+```
+
+A local build only runs on distributions as new as the one it was built on; publish the one from the workflow.

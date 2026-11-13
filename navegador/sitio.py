@@ -28,6 +28,7 @@ URL_RUNS = BASE + "/my-runs"          # afk-runs.json
 URL_INVENTARIO = BASE + "/inventory"  # afk-inventory.json
 URL_CUENTAS = BASE + "/game-accounts"  # elegir personaje y hacer Fetch
 URL_DESCARGAS = URL_RUNS
+URL_DISCORD = "https://discord.gg/bX5nQpZX6q"   # comunidad de la app: consultas, problemas, ideas
 PASOS_DESCARGA = N_("1. Inicia sesión en esperianarchive.com en tu navegador.\n"
                     "2. En «Game accounts» elige tu personaje (servidor) y pulsa «Fetch … inventory and runs».\n"
                     "3. En «Inventory» descarga afk-inventory.json, y en «My runs» descarga afk-runs.json.\n"

@@ -57,9 +57,12 @@ class VentanaPrincipal:
         self.root.minsize(1100, 680)
         if ancho <= 1600:
             try:
-                self.root.state("zoomed")
+                self.root.state("zoomed")              # Windows
             except tk.TclError:
-                pass
+                try:
+                    self.root.attributes("-zoomed", True)   # Linux (X11 / Wayland)
+                except tk.TclError:
+                    pass
         # Todo lo del usuario va en datos_usuario/ (ruta absoluta: funciona aunque se ejecute desde otra carpeta)
         from navegador.rutas import DATOS
         self.perfil_path = DATOS / "perfil_esperian"
@@ -237,6 +240,18 @@ class VentanaPrincipal:
                     side="right", padx=(6, 0))
                 ttk.Button(fila, text=tr("🌐 My runs"), command=lambda: abrir_enlace(URL_RUNS)).pack(
                     side="right", padx=6)
+        from navegador.sitio import URL_DISCORD
+        from aplicacion.ventana_importar import abrir_enlace
+        comunidad = ttk.Frame(marco, style="Tarjeta.TFrame", padding=(14, 10))
+        comunidad.pack(fill="x", pady=(14, 0))
+        textos = ttk.Frame(comunidad, style="Panel.TFrame")
+        textos.pack(side="left", fill="x", expand=True)
+        ttk.Label(textos, text=tr("💬 Comunidad en Discord"), style="Tarjeta.TLabel",
+                  font=tema.FUENTE_NEGRITA).pack(anchor="w")
+        ttk.Label(textos, text=tr("Únete para hacer consultas, avisar de problemas, proponer ideas o compartir equipos."),
+                  style="TarjetaTexto.TLabel").pack(anchor="w")
+        ttk.Button(comunidad, text=tr("Unirse al Discord  →"), style="Acento.TButton",
+                   command=lambda: abrir_enlace(URL_DISCORD)).pack(side="right")
         if sitio_en_desarrollo():
             aviso = ttk.Frame(marco, style="Tarjeta.TFrame", padding=(14, 10))
             aviso.pack(fill="x", pady=(14, 0))
@@ -414,7 +429,7 @@ class VentanaPrincipal:
         def trabajo():
             try:
                 info = act.revisar(self.base_dir)
-            except Exception:   # sin conexión, token vencido…: no molestar al abrir
+            except Exception:   # sin conexión, límite de GitHub…: no molestar al abrir
                 return
             if info:
                 self.root.after(0, lambda: self._mostrar_banner(info))
