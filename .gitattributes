@@ -1,0 +1,8 @@
+# El proyecto Kotlin Multiplatform vive en este mismo repositorio, pero NO debe llegar a las instalaciones de la
+# app Python: el actualizador descarga el zip de cada versión (git archive), y export-ignore lo deja fuera.
+AFK-community/ export-ignore
+AFK-community/** export-ignore
+
+# Scripts de Gradle: el de Unix necesita LF aunque se haga commit desde Windows
+AFK-community/gradlew      text eol=lf
+AFK-community/gradlew.bat  text eol=crlf

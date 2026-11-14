@@ -11,6 +11,7 @@ Everything runs on your PC. Your data stays in the app folder and is never uploa
 | **[Windows installer — AFK-Community-setup.exe](https://github.com/shredia/AFK-Community/releases/latest/download/AFK-Community-setup.exe)** | Recommended on Windows. Run it and you're done. |
 | [Windows portable — AFK-Community-portable.zip](https://github.com/shredia/AFK-Community/releases/latest/download/AFK-Community-portable.zip) | No installation: unzip it and open the `.exe`. |
 | [Linux — AFK-Community-linux.tar.gz](https://github.com/shredia/AFK-Community/releases/latest/download/AFK-Community-linux.tar.gz) | 64-bit. Extract it and run `AFK-Community` (see *Installation*). |
+| [Android — AFK-Community-android.apk](https://github.com/shredia/AFK-Community/releases/latest/download/AFK-Community-android.apk) | **New, in testing.** Android 7.0+. Open the `.apk` on your phone (see *Installation*). |
 
 All versions and their changes: [Releases](https://github.com/shredia/AFK-Community/releases).
 
@@ -47,6 +48,14 @@ The app is installed in `%LOCALAPPDATA%\Programs\AFK-Community`, and your data i
 It works on practically any desktop distribution from 2019 onwards (glibc 2.28+): Ubuntu 20.04+, Debian 10+, Mint 20+, Fedora 29+, RHEL/Rocky/Alma 8+, openSUSE Leap 15.3+, Arch, Manjaro… Python doesn't need to be installed. Everything works as on Windows.
 
 The app checks GitHub for new versions and offers to update itself.
+
+**Android (new, in testing):**
+
+1. On your phone, download **AFK-Community-android.apk** (link above).
+2. Open it. Android asks you to allow installing apps from your browser or file manager the first time: allow it and tap *Install*.
+3. Copy your `afk-inventory.json` and `afk-runs.json` to the phone and import them from *Import / export*, the same way as on PC.
+
+The Android app has the optimizer, team explorer, optimizer settings, weekly progress, your account, friends, Temporal Rift and import/export (including friends' `.zip` files). It doesn't update itself yet: to update, download the new `.apk` and open it; it installs over the old one and keeps your data.
 
 ## Getting started
 
