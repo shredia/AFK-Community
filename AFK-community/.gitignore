@@ -20,3 +20,8 @@ node_modules/
 
 # Casos de equivalencia con Python: tienen datos de cuentas reales (herramientas_migracion/generar_casos.py)
 casos_prueba/
+
+# Firma de la app Android: contraseña de la clave (la clave está fuera del repositorio)
+keystore.properties
+*.jks
+*.keystore
